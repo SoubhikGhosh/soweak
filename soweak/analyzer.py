@@ -13,6 +13,7 @@ from .detectors.base import BaseDetector, DetectorResult, VulnerabilityType, Sev
 from .detectors import (
     PromptInjectionDetector,
     SensitiveInfoDetector,
+    SupplyChainDetector,
     DataPoisoningDetector,
     OutputHandlingDetector,
     ExcessiveAgencyDetector,
@@ -145,6 +146,7 @@ class PromptAnalyzer:
     DEFAULT_DETECTORS: List[Type[BaseDetector]] = [
         PromptInjectionDetector,
         SensitiveInfoDetector,
+        SupplyChainDetector,
         DataPoisoningDetector,
         OutputHandlingDetector,
         ExcessiveAgencyDetector,
