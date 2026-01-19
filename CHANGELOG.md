@@ -2,6 +2,12 @@
 
 All notable changes to soweak will be documented in this file.
 
+## [2.0.1] - 2026-01-20
+
+### Fixed
+- Detection patterns now correctly identify all README example prompts as unsafe
+- **LLM01**: Fixed "Ignore all instructions" not being detected (previously required "previous" keyword)
+
 ## [2.0.0] - 2026-01-19
 
 ### Added
@@ -47,9 +53,6 @@ All notable changes to soweak will be documented in this file.
   - Reorganized threat detection examples in numerical order
   - Updated coverage table to reflect full LLM03 support
 
-### Fixed
-- Detection patterns now correctly identify all README example prompts as unsafe
-- **LLM01**: Fixed "Ignore all instructions" not being detected (previously required "previous" keyword)
 
 ## [1.2.0] - 2026-01-19
 
