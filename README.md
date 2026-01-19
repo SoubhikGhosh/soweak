@@ -13,8 +13,15 @@
 [![GitHub last commit](https://img.shields.io/github/last-commit/SoubhikGhosh/soweak?style=flat-square&logo=github)](https://github.com/SoubhikGhosh/soweak/commits/main)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg?style=flat-square)](https://github.com/psf/black)
 
-## 🎯 Features
+## 🆕 What's New in v2.0
+
+- **LLM03: Supply Chain Detector** — Full coverage for detecting malicious packages, untrusted model sources, and dependency injection attacks
+- **Enhanced Detection Patterns** — 40+ new patterns across LLM05, LLM08, LLM09, and LLM10 detectors
+- **100% OWASP Coverage** — All 10 OWASP LLM Top 10 2025 vulnerabilities now have full detection support
+
 ---
+
+## 🎯 Features
 
 **soweak** is a **zero-dependency Python library** for detecting **prompt injection attacks**, **jailbreak attempts**, and **LLM security vulnerabilities** in AI applications. Built for **LangChain**, **OpenAI GPT-4/ChatGPT**, **Google Gemini/ADK**, **Anthropic Claude**, and any LLM pipeline, soweak provides comprehensive protection against the **OWASP Top 10 for Large Language Model Applications (2025)**.
 
@@ -951,11 +958,11 @@ flowchart TD
 
     subgraph PA [PromptAnalyzer]
         direction TB
-        
-        Detectors["<b>Detectors</b><br/>LLM01: Prompt Inj. | LLM02: Info Disc. | LLM04: Poisoning<br/>LLM05: Output | LLM06: Agency | LLM07: Sys Prompt<br/>LLM08: RAG/Vector | LLM09: Misinfo | LLM10: DoS"]
-        
+
+        Detectors["<b>Detectors (10 OWASP Categories)</b><br/>LLM01: Prompt Inj. | LLM02: Info Disc. | LLM03: Supply Chain<br/>LLM04: Poisoning | LLM05: Output | LLM06: Agency<br/>LLM07: Sys Prompt | LLM08: RAG/Vector | LLM09: Misinfo | LLM10: DoS"]
+
         Detectors --> RS
-        
+
         RS["<b>RiskScorer</b><br/>• Severity weighting<br/>• Category aggregation<br/>• Confidence scoring<br/>• Diversity analysis"]
     end
 
