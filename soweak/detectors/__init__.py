@@ -16,6 +16,7 @@ from .prompt_injection import PromptInjectionDetector
 from .sensitive_info import SensitiveInfoDetector
 from .data_poisoning import DataPoisoningDetector
 from .additional_detectors import (
+    SupplyChainDetector,
     OutputHandlingDetector,
     ExcessiveAgencyDetector,
     SystemPromptLeakageDetector,
@@ -34,6 +35,7 @@ __all__ = [
     # Detectors
     "PromptInjectionDetector",
     "SensitiveInfoDetector",
+    "SupplyChainDetector",
     "DataPoisoningDetector",
     "OutputHandlingDetector",
     "ExcessiveAgencyDetector",

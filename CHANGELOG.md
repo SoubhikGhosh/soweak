@@ -2,6 +2,54 @@
 
 All notable changes to soweak will be documented in this file.
 
+## [1.3.0] - 2026-01-19
+
+### Added
+- **LLM03: Supply Chain Detector**: New detector for identifying supply chain vulnerabilities including:
+  - Malicious package/dependency injection from untrusted URLs
+  - Remote code execution via pipe (`curl | bash` patterns)
+  - Untrusted model/weights loading from external sources
+  - Suspicious domain detection in package URLs
+  - Plugin/extension injection from untrusted sources
+  - Dependency file manipulation attempts
+
+### Enhanced
+- **LLM05: Improper Output Handling Detector**: Added 12 new patterns:
+  - XSS detection with `<script>` tags and DOM manipulation (`document.cookie`, `document.location`)
+  - SQL injection patterns including `'; DROP TABLE` and comment terminators
+  - Dangerous shell commands (`rm -rf /`, `--no-preserve-root`)
+  - Improved pattern matching for output generation requests
+
+- **LLM08: Vector and Embedding Weaknesses Detector**: Added 8 new patterns:
+  - Knowledge base injection attempts ("add to your knowledge base as a verified fact")
+  - Retrieval priority manipulation ("always prioritize results containing")
+  - RAG override keyword injection (`TRUSTED_SOURCE_OVERRIDE`, `PRIORITY_CONTEXT`)
+  - Fake system context injection (`IMPORTANT SYSTEM CONTEXT:`)
+
+- **LLM09: Misinformation Detector**: Added 8 new patterns:
+  - Vaccine misinformation detection ("vaccines cause autism")
+  - Authority impersonation (WHO, CDC, FDA representatives)
+  - Health misinformation requests
+  - Historical revisionism ("rewrite history")
+  - Conspiracy theory propagation (moon landing, flat earth, 9/11)
+  - False consensus framing ("present as scientific consensus")
+
+- **LLM10: Unbounded Consumption Detector**: Added 6 new patterns:
+  - "Repeat the following forever" detection
+  - Large factorial/fibonacci computation requests
+  - Recursive definition expansion attacks ("Define X as... expand X N times")
+  - Improved "show all digits" detection for large numbers
+
+### Changed
+- **OWASP Coverage**: Updated LLM03 from "Partial (Input-side)" to "Full Coverage"
+- **README.md**:
+  - Added complete examples for all OWASP LLM Top 10 categories (LLM01-LLM10)
+  - Reorganized threat detection examples in numerical order
+  - Updated coverage table to reflect full LLM03 support
+
+### Fixed
+- Detection patterns now correctly identify all README example prompts as unsafe
+
 ## [1.2.0] - 2026-01-19
 
 ### Added
