@@ -5,6 +5,7 @@ Usage:
     soweak "Your prompt here"
     soweak --file prompts.txt
     soweak --prompt-file document.txt
+    soweak -p document.txt
     soweak --json "Your prompt here"
 """
 
