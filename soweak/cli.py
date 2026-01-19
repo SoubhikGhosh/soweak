@@ -4,6 +4,8 @@ Command-line interface for soweak library.
 Usage:
     soweak "Your prompt here"
     soweak --file prompts.txt
+    soweak --prompt-file document.txt
+    soweak -p document.txt
     soweak --json "Your prompt here"
 """
 
@@ -26,6 +28,7 @@ def main():
     input_group = parser.add_mutually_exclusive_group()
     input_group.add_argument("prompt", nargs="?", help="The prompt to analyze")
     input_group.add_argument("--file", "-f", type=str, help="File containing prompts (one per line)")
+    input_group.add_argument("--prompt-file", "-p", type=str, help="Text file to analyze as a single prompt")
     input_group.add_argument("--stdin", action="store_true", help="Read prompt from stdin")
     
     # Analysis options
@@ -56,18 +59,45 @@ def main():
     
     # Get prompt(s) to analyze
     prompts = []
+    source_files = []  # Track source file names for reporting
     
     if args.stdin:
         prompts = [sys.stdin.read().strip()]
+        source_files = ["<stdin>"]
+    elif args.prompt_file:
+        # Read entire file as a single prompt
+        try:
+            with open(args.prompt_file, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if content:
+                    prompts = [content]
+                    source_files = [args.prompt_file]
+                else:
+                    print(f"Error: File is empty: {args.prompt_file}", file=sys.stderr)
+                    return 1
+        except FileNotFoundError:
+            print(f"Error: File not found: {args.prompt_file}", file=sys.stderr)
+            return 1
+        except UnicodeDecodeError:
+            print(f"Error: Unable to decode file (not valid UTF-8): {args.prompt_file}", file=sys.stderr)
+            return 1
+        except PermissionError:
+            print(f"Error: Permission denied: {args.prompt_file}", file=sys.stderr)
+            return 1
     elif args.file:
         try:
-            with open(args.file, "r") as f:
+            with open(args.file, "r", encoding="utf-8") as f:
                 prompts = [line.strip() for line in f if line.strip()]
+                source_files = [f"{args.file}:{i+1}" for i in range(len(prompts))]
         except FileNotFoundError:
             print(f"Error: File not found: {args.file}", file=sys.stderr)
             return 1
+        except UnicodeDecodeError:
+            print(f"Error: Unable to decode file (not valid UTF-8): {args.file}", file=sys.stderr)
+            return 1
     elif args.prompt:
         prompts = [args.prompt]
+        source_files = ["<argument>"]
     else:
         parser.print_help()
         return 0
@@ -93,25 +123,45 @@ def main():
     # Output results
     if args.json:
         if len(results) == 1:
-            print(results[0].to_json())
+            output = results[0].to_dict()
+            if source_files:
+                output["source"] = source_files[0]
+            print(json.dumps(output, indent=2, default=str))
         else:
-            output = [r.to_dict() for r in results]
+            output = []
+            for i, r in enumerate(results):
+                d = r.to_dict()
+                if source_files and i < len(source_files):
+                    d["source"] = source_files[i]
+                output.append(d)
             print(json.dumps(output, indent=2, default=str))
     elif args.summary:
         for i, result in enumerate(results):
             if len(results) > 1:
                 print(f"\n{'='*60}")
                 print(f"PROMPT {i+1}/{len(results)}")
+                if source_files and i < len(source_files):
+                    print(f"Source: {source_files[i]}")
+            elif source_files and args.prompt_file:
+                print(f"Analyzing: {source_files[0]}")
             print(result.summary())
     elif args.quiet:
-        for result in results:
+        for i, result in enumerate(results):
             status = "UNSAFE" if not result.is_safe else "SAFE"
-            print(f"{result.risk_score:.1f} {result.risk_level.value} {status}")
+            source = ""
+            if source_files and i < len(source_files):
+                source = f" [{source_files[i]}]"
+            print(f"{result.risk_score:.1f} {result.risk_level.value} {status}{source}")
     else:
         for i, (prompt, result) in enumerate(zip(prompts, results)):
             if len(results) > 1:
                 print(f"\n--- Prompt {i+1}/{len(results)} ---")
+                if source_files and i < len(source_files):
+                    print(f"Source: {source_files[i]}")
                 print(f"Input: {prompt[:50]}{'...' if len(prompt) > 50 else ''}")
+            elif args.prompt_file:
+                print(f"📄 Analyzing file: {args.prompt_file}")
+                print(f"   Size: {len(prompt)} characters")
             
             status_icon = "⚠️ " if not result.is_safe else "✅"
             print(f"{status_icon} Risk Score: {result.risk_score}/100")
