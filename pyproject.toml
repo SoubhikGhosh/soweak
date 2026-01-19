@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "soweak"
-version = "1.1.1"
-description = "Security OWASP Weak Prompt Detection Library - Detect malicious intent in LLM prompts based on OWASP Top 10 for LLM Applications 2025"
+version = "1.2.0"
+description = "LLM Security & Prompt Injection Detection Library - OWASP Top 10 for LLM Applications 2025 vulnerability scanner for AI/ML pipelines, LangChain, OpenAI, and Google ADK integrations"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.8"
@@ -16,23 +16,82 @@ maintainers = [
     {name = "Soubhik Ghosh", email = "99ghoshsoubhik@gmail.com"}
 ]
 keywords = [
-    "llm",
-    "security",
-    "owasp",
+    # Core functionality
+    "llm-security",
     "prompt-injection",
+    "prompt-injection-detection",
     "ai-security",
+    "ml-security",
     "vulnerability-detection",
-    "machine-learning",
-    "nlp",
+    "security-scanner",
+    
+    # OWASP related
+    "owasp",
+    "owasp-top-10",
+    "owasp-llm",
+    "llm-vulnerabilities",
+    "security-audit",
+    
+    # AI/ML frameworks
+    "langchain",
+    "langchain-security",
+    "openai",
+    "openai-security",
+    "google-adk",
+    "google-generative-ai",
+    "gemini",
+    "chatgpt",
+    "gpt-4",
+    "claude",
+    "anthropic",
+    "huggingface",
+    
+    # GenAI & LLM
     "genai",
-    "prompt-security",
+    "generative-ai",
+    "llm",
+    "large-language-model",
+    "nlp",
+    "nlp-security",
+    "chatbot-security",
+    "conversational-ai",
+    
+    # Attack types
+    "jailbreak-detection",
+    "jailbreak-prevention",
+    "prompt-hacking",
+    "adversarial-attacks",
+    "input-validation",
+    "output-filtering",
+    "data-poisoning",
+    "rag-security",
+    
+    # Use cases
+    "red-teaming",
+    "ai-red-team",
+    "llm-firewall",
+    "prompt-firewall",
+    "guardrails",
+    "ai-guardrails",
+    "content-moderation",
+    "safety-filter",
+    
+    # Technical
+    "python",
+    "machine-learning",
+    "deep-learning",
+    "transformer",
+    "text-classification",
+    "pattern-matching",
+    "regex",
+    "zero-dependency",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -40,10 +99,16 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Security",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Text Processing :: Filters",
     "Typing :: Typed",
+    "Natural Language :: English",
+    "Environment :: Console",
+    "Framework :: Pytest",
 ]
 
 dependencies = []
@@ -56,19 +121,39 @@ dev = [
     "isort>=5.12.0",
     "mypy>=1.0.0",
     "flake8>=6.0.0",
+    "pre-commit>=3.0.0",
 ]
 docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.0.0",
     "mkdocstrings[python]>=0.24.0",
 ]
+langchain = [
+    "langchain>=0.1.0",
+    "langchain-core>=0.1.0",
+]
+openai = [
+    "openai>=1.0.0",
+]
+google = [
+    "google-generativeai>=0.3.0",
+    "google-adk>=0.1.0",
+]
+all = [
+    "langchain>=0.1.0",
+    "langchain-core>=0.1.0",
+    "openai>=1.0.0",
+    "google-generativeai>=0.3.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/SoubhikGhosh/soweak"
-Documentation = "https://github.com/SoubhikGhosh/soweak"
+Documentation = "https://github.com/SoubhikGhosh/soweak#readme"
 Repository = "https://github.com/SoubhikGhosh/soweak"
-Issues = "https://github.com/soweak/SoubhikGhosh/issues"
+Issues = "https://github.com/SoubhikGhosh/soweak/issues"
 Changelog = "https://github.com/SoubhikGhosh/soweak/blob/main/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/SoubhikGhosh/soweak/issues"
+"Source Code" = "https://github.com/SoubhikGhosh/soweak"
 
 [project.scripts]
 soweak = "soweak.cli:main"
@@ -82,7 +167,7 @@ soweak = ["py.typed"]
 
 [tool.black]
 line-length = 100
-target-version = ["py38", "py39", "py310", "py311", "py312"]
+target-version = ["py38", "py39", "py310", "py311", "py312", "py313"]
 include = '\.pyi?$'
 
 [tool.isort]
