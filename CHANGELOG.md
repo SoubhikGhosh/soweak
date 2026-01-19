@@ -2,6 +2,41 @@
 
 All notable changes to soweak will be documented in this file.
 
+## [1.2.0] - 2026-01-19
+
+### Added
+- **Framework Integrations**: Added comprehensive integration examples for:
+  - **LangChain**: `SoweakCallbackHandler`, `SoweakGuardrail`, `SecureLangChainPipeline`, secure RAG chain factory
+  - **OpenAI**: `SecureOpenAIClient`, `OpenAISecurityMiddleware`, `@secure_openai_decorator`
+  - **Google Generative AI / ADK**: `SecureGeminiClient`, `SoweakADKMiddleware`, `SecureADKAgent` base class
+- **Optional Dependencies**: Added install extras for framework integrations:
+  - `pip install soweak[langchain]`
+  - `pip install soweak[openai]`
+  - `pip install soweak[google]`
+  - `pip install soweak[all]`
+- **SEO & Discoverability**:
+  - Expanded `pyproject.toml` keywords (50+ relevant terms)
+  - Added PyPI/download badges to README
+  - Created `GITHUB_TOPICS.md` with 20 recommended repository topics
+  - Rewrote README introduction with front-loaded keywords
+- **Documentation**: Added architecture diagram and comprehensive examples for all OWASP LLM Top 10 threat categories
+
+### Changed
+- **README.md**: Complete rewrite with:
+  - SEO-optimized introduction
+  - Multiple badge displays (PyPI, downloads, Python versions, etc.)
+  - Framework integration quick start guides
+  - Visual architecture diagram
+  - Improved code examples
+- **pyproject.toml**: 
+  - Expanded keywords for better discoverability
+  - Added new classifiers
+  - Added optional dependencies for integrations
+  - Updated URLs
+
+### Fixed
+- Updated license classifier to use correct Apache License identifier
+
 ## [1.1.1] - 2026-01-19
 
 ### Changed
