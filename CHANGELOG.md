@@ -2,7 +2,7 @@
 
 All notable changes to soweak will be documented in this file.
 
-## [1.3.0] - 2026-01-19
+## [2.0.0] - 2026-01-19
 
 ### Added
 - **LLM03: Supply Chain Detector**: New detector for identifying supply chain vulnerabilities including:
@@ -49,6 +49,7 @@ All notable changes to soweak will be documented in this file.
 
 ### Fixed
 - Detection patterns now correctly identify all README example prompts as unsafe
+- **LLM01**: Fixed "Ignore all instructions" not being detected (previously required "previous" keyword)
 
 ## [1.2.0] - 2026-01-19
 

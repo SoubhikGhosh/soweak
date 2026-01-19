@@ -35,7 +35,8 @@ class PromptInjectionDetector(BaseDetector):
     # Direct injection patterns
     DIRECT_INJECTION_PATTERNS = [
         # Instruction override
-        (r"ignore\s+(all\s+)?previous\s+(instructions?|rules?|guidelines?|prompts?)", Severity.CRITICAL, "Instruction override attempt"),
+        (r"ignore\s+(all\s+)?(previous\s+)?(instructions?|rules?|guidelines?|prompts?)", Severity.CRITICAL, "Instruction override attempt"),
+        (r"ignore\s+(all|any|every)\s+(instructions?|rules?|constraints?)", Severity.CRITICAL, "Instruction override attempt"),
         (r"disregard\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|rules?|text)", Severity.CRITICAL, "Instruction disregard attempt"),
         (r"forget\s+(everything|all|what)\s+(you\s+)?(know|learned|were\s+told)", Severity.CRITICAL, "Memory wipe attempt"),
         (r"override\s+(your\s+)?(instructions?|rules?|guidelines?|programming)", Severity.CRITICAL, "System override attempt"),
