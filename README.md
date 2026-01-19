@@ -30,6 +30,7 @@ Use soweak as an **LLM firewall**, **prompt guardrail**, or **AI red-teaming too
 - **Detailed Reports**: Rich analysis reports with severity levels and recommendations
 - **Extensible**: Add custom detectors for your specific use cases
 - **Fast**: Efficient regex-based detection suitable for real-time analysis
+
 | Feature | Description |
 |---------|-------------|
 | 🎯 **OWASP LLM Top 10** | Full coverage of all 2025 LLM vulnerability categories |
