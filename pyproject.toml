@@ -4,16 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "soweak"
-version = "1.0.0"
+version = "1.1.0"
 description = "Security OWASP Weak Prompt Detection Library - Detect malicious intent in LLM prompts based on OWASP Top 10 for LLM Applications 2025"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
 requires-python = ">=3.8"
 authors = [
-    {name = "soweak Security Team", email = "security@soweak.dev"}
+    {name = "Soubhik Ghosh", email = "99ghoshsoubhik@gmail.com"}
 ]
 maintainers = [
-    {name = "soweak Security Team", email = "security@soweak.dev"}
+    {name = "Soubhik Ghosh", email = "99ghoshsoubhik@gmail.com"}
 ]
 keywords = [
     "llm",
@@ -64,11 +64,11 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/soweak/soweak"
-Documentation = "https://soweak.readthedocs.io"
-Repository = "https://github.com/soweak/soweak"
-Issues = "https://github.com/soweak/soweak/issues"
-Changelog = "https://github.com/soweak/soweak/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/SoubhikGhosh/soweak"
+Documentation = "https://github.com/SoubhikGhosh/soweak"
+Repository = "https://github.com/SoubhikGhosh/soweak"
+Issues = "https://github.com/soweak/SoubhikGhosh/issues"
+Changelog = "https://github.com/SoubhikGhosh/soweak/blob/main/CHANGELOG.md"
 
 [project.scripts]
 soweak = "soweak.cli:main"
