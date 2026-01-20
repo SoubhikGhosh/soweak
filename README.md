@@ -7,6 +7,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/soweak.svg?style=flat-square&logo=python&logoColor=white)](https://pypi.org/project/soweak/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](https://opensource.org/licenses/Apache-2.0)
 [![OWASP](https://img.shields.io/badge/OWASP-LLM%20Top%2010%202025-orange.svg?style=flat-square)](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/soweak?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=MAGENTA&left_text=downloads)](https://pepy.tech/projects/soweak)
 
 [![GitHub stars](https://img.shields.io/github/stars/SoubhikGhosh/soweak?style=flat-square&logo=github)](https://github.com/SoubhikGhosh/soweak/stargazers)
 [![GitHub issues](https://img.shields.io/github/issues/SoubhikGhosh/soweak?style=flat-square&logo=github)](https://github.com/SoubhikGhosh/soweak/issues)
