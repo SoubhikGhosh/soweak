@@ -4,87 +4,49 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "soweak"
-version = "2.0.1"
-description = "LLM Security & Prompt Injection Detection Library - OWASP Top 10 for LLM Applications 2025 vulnerability scanner for AI/ML pipelines, LangChain, OpenAI, and Google ADK integrations"
+version = "3.0.0"
+description = "OWASP LLM Top 10 security middleware framework for Python: input/output/retrieval/tool-call boundary hooks, prompt-injection detection, canary-based system-prompt leakage detection, audit logging, and adapters for LangChain, OpenAI, and Google Gemini."
 readme = "README.md"
 license = {text = "Apache-2.0"}
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [
-    {name = "Soubhik Ghosh", email = "99ghoshsoubhik@gmail.com"}
+    {name = "Soubhik Ghosh", email = "99ghoshsoubhik@gmail.com"},
 ]
 maintainers = [
-    {name = "Soubhik Ghosh", email = "99ghoshsoubhik@gmail.com"}
+    {name = "Soubhik Ghosh", email = "99ghoshsoubhik@gmail.com"},
 ]
 keywords = [
-    # Core functionality
     "llm-security",
     "prompt-injection",
     "prompt-injection-detection",
+    "owasp",
+    "owasp-llm",
+    "owasp-top-10",
     "ai-security",
     "ml-security",
-    "vulnerability-detection",
-    "security-scanner",
-    
-    # OWASP related
-    "owasp",
-    "owasp-top-10",
-    "owasp-llm",
-    "llm-vulnerabilities",
-    "security-audit",
-    
-    # AI/ML frameworks
-    "langchain",
-    "langchain-security",
-    "openai",
-    "openai-security",
-    "google-adk",
-    "google-generative-ai",
-    "gemini",
-    "chatgpt",
-    "gpt-4",
-    "claude",
-    "anthropic",
-    "huggingface",
-    
-    # GenAI & LLM
-    "genai",
-    "generative-ai",
-    "llm",
-    "large-language-model",
-    "nlp",
-    "nlp-security",
-    "chatbot-security",
-    "conversational-ai",
-    
-    # Attack types
-    "jailbreak-detection",
-    "jailbreak-prevention",
-    "prompt-hacking",
-    "adversarial-attacks",
-    "input-validation",
-    "output-filtering",
-    "data-poisoning",
-    "rag-security",
-    
-    # Use cases
-    "red-teaming",
-    "ai-red-team",
-    "llm-firewall",
-    "prompt-firewall",
     "guardrails",
     "ai-guardrails",
-    "content-moderation",
-    "safety-filter",
-    
-    # Technical
-    "python",
-    "machine-learning",
-    "deep-learning",
-    "transformer",
-    "text-classification",
-    "pattern-matching",
-    "regex",
-    "zero-dependency",
+    "llm-firewall",
+    "prompt-firewall",
+    "jailbreak-detection",
+    "red-teaming",
+    "ai-red-team",
+    "security-middleware",
+    "langchain",
+    "openai",
+    "gemini",
+    "anthropic",
+    "claude",
+    "rag-security",
+    "system-prompt-leakage",
+    "canary-tokens",
+    "input-validation",
+    "output-filtering",
+    "audit-log",
+    "policy-engine",
+    "llm",
+    "genai",
+    "nlp",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -94,8 +56,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -114,22 +74,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "black>=23.0.0",
-    "isort>=5.12.0",
-    "mypy>=1.0.0",
-    "flake8>=6.0.0",
-    "pre-commit>=3.0.0",
-]
-docs = [
-    "mkdocs>=1.5.0",
-    "mkdocs-material>=9.0.0",
-    "mkdocstrings[python]>=0.24.0",
-]
 langchain = [
-    "langchain>=0.1.0",
     "langchain-core>=0.1.0",
 ]
 openai = [
@@ -137,13 +82,26 @@ openai = [
 ]
 google = [
     "google-generativeai>=0.3.0",
-    "google-adk>=0.1.0",
 ]
 all = [
-    "langchain>=0.1.0",
     "langchain-core>=0.1.0",
     "openai>=1.0.0",
     "google-generativeai>=0.3.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=24.0.0",
+    "isort>=5.13.0",
+    "mypy>=1.8.0",
+    "ruff>=0.4.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.24.0",
 ]
 
 [project.urls]
@@ -152,8 +110,7 @@ Documentation = "https://github.com/SoubhikGhosh/soweak#readme"
 Repository = "https://github.com/SoubhikGhosh/soweak"
 Issues = "https://github.com/SoubhikGhosh/soweak/issues"
 Changelog = "https://github.com/SoubhikGhosh/soweak/blob/main/CHANGELOG.md"
-"Bug Tracker" = "https://github.com/SoubhikGhosh/soweak/issues"
-"Source Code" = "https://github.com/SoubhikGhosh/soweak"
+Roadmap = "https://github.com/SoubhikGhosh/soweak/blob/main/ROADMAP.md"
 
 [project.scripts]
 soweak = "soweak.cli:main"
@@ -161,24 +118,41 @@ soweak = "soweak.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["soweak*"]
+exclude = ["tests*", "examples*"]
 
 [tool.setuptools.package-data]
 soweak = ["py.typed"]
 
 [tool.black]
 line-length = 100
-target-version = ["py38", "py39", "py310", "py311", "py312", "py313"]
-include = '\.pyi?$'
+target-version = ["py310", "py311", "py312", "py313"]
 
 [tool.isort]
 profile = "black"
 line_length = 100
 
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501"]
+
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+strict_optional = true
+
+[[tool.mypy.overrides]]
+module = [
+    "langchain_core.*",
+    "google.generativeai.*",
+    "openai.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

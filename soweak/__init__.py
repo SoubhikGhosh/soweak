@@ -1,48 +1,95 @@
+"""soweak — OWASP LLM Top 10 security middleware framework.
+
+See :doc:`ROADMAP <ROADMAP>` for the full architectural model and which
+OWASP categories each release covers.
+
+Quick start::
+
+    from soweak import (
+        Pipeline,
+        PolicyBuilder,
+        BlockEnforcer,
+        RedactEnforcer,
+        Severity,
+    )
+    from soweak.detectors import (
+        prompt_injection_detector,
+        input_dlp_detector,
+    )
+
+    policy = (
+        PolicyBuilder()
+        .on_input("user-prompt")
+            .detect(prompt_injection_detector())
+            .enforce(BlockEnforcer(min_severity=Severity.HIGH))
+        .on_input("dlp")
+            .detect(input_dlp_detector())
+            .enforce(RedactEnforcer())
+        .build()
+    )
+
+    pipeline = Pipeline(policy)
+    decision = pipeline.check_input(user_text)
+    if decision.blocked:
+        raise SecurityError(decision.reason)
 """
-soweak - Security OWASP Weak Prompt Detection Library
 
-A comprehensive Python library for detecting malicious intent in LLM prompts
-based on OWASP Top 10 for LLM Applications (2025) standards.
-"""
-
-__version__ = "1.0.0"
-__author__ = "soweak Security Team"
-
-from .analyzer import (
-    PromptAnalyzer, 
-    AnalysisResult,
-    analyze_prompt,
-    is_prompt_safe,
-    get_risk_score,
+from soweak.core import (
+    Action,
+    AuditEvent,
+    AuditLog,
+    Boundary,
+    Context,
+    Decision,
+    Detector,
+    Enforcer,
+    InMemoryAuditLog,
+    JsonLinesAuditLog,
+    OwaspCategory,
+    Payload,
+    Pipeline,
+    Policy,
+    PolicyBuilder,
+    Rule,
+    Severity,
+    Signal,
 )
-from .detectors import (
-    PromptInjectionDetector,
-    SensitiveInfoDetector,
-    DataPoisoningDetector,
-    OutputHandlingDetector,
-    ExcessiveAgencyDetector,
-    SystemPromptLeakageDetector,
-    RAGWeaknessDetector,
-    MisinformationDetector,
-    UnboundedConsumptionDetector,
+from soweak.enforcers import (
+    BlockEnforcer,
+    LogOnlyEnforcer,
+    RedactEnforcer,
+    ThresholdEnforcer,
+    TransformEnforcer,
 )
-from .risk_scorer import RiskScorer, RiskLevel
+
+__version__ = "3.0.0"
 
 __all__ = [
-    "PromptAnalyzer",
-    "AnalysisResult",
-    "analyze_prompt",
-    "is_prompt_safe",
-    "get_risk_score",
-    "RiskScorer",
-    "RiskLevel",
-    "PromptInjectionDetector",
-    "SensitiveInfoDetector",
-    "DataPoisoningDetector",
-    "OutputHandlingDetector",
-    "ExcessiveAgencyDetector",
-    "SystemPromptLeakageDetector",
-    "RAGWeaknessDetector",
-    "MisinformationDetector",
-    "UnboundedConsumptionDetector",
+    # version
+    "__version__",
+    # core types
+    "Action",
+    "AuditEvent",
+    "AuditLog",
+    "Boundary",
+    "Context",
+    "Decision",
+    "Detector",
+    "Enforcer",
+    "InMemoryAuditLog",
+    "JsonLinesAuditLog",
+    "OwaspCategory",
+    "Payload",
+    "Pipeline",
+    "Policy",
+    "PolicyBuilder",
+    "Rule",
+    "Severity",
+    "Signal",
+    # built-in enforcers
+    "BlockEnforcer",
+    "LogOnlyEnforcer",
+    "RedactEnforcer",
+    "ThresholdEnforcer",
+    "TransformEnforcer",
 ]

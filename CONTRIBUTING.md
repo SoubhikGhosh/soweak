@@ -1,89 +1,85 @@
 # Contributing to soweak
 
-First off, thank you for considering contributing to `soweak`. It's people like you that make `soweak` such a great tool.
+Thanks for your interest in contributing.
 
-Following these guidelines helps to communicate that you respect the time of the developers managing and developing this open source project. In return, they should reciprocate that respect in addressing your issue, assessing changes, and helping you finalize your pull requests.
+## Where new work lands
 
-## Code of Conduct
+Read [`ROADMAP.md`](ROADMAP.md) first. Every phase ships a specific set of
+capabilities at specific boundaries. Two principles:
 
-This project and everyone participating in it is governed by the [soweak Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior.
+1. **New defenses go at the right boundary.** If a check belongs on the
+   output side, do not bolt it onto the input boundary just because input
+   scanning is easier. The whole point of the v3 architecture is that we
+   stopped doing that.
+2. **Honest framing beats checkbox coverage.** If a defense is partial or
+   only covers part of an OWASP category, document the gap. We'd rather
+   ship "medium" coverage clearly labelled than "strong" coverage that
+   isn't real.
 
-## How Can I Contribute?
-
-### Reporting Bugs
-
-This is a great way to contribute. Before creating a bug report, please check that the issue hasn't already been reported. If you've found a new bug, please create an issue that includes:
-
-- A clear title and description.
-- The version of `soweak` you are using.
-- A code sample or an executable test case demonstrating the bug.
-- The expected behavior and what actually happened.
-
-### Suggesting Enhancements
-
-If you have an idea for a new feature or an improvement to an existing one, please create an issue that includes:
-
-- A clear title and description.
-- A step-by-step description of the suggested enhancement in as many details as possible.
-- Use cases that this enhancement would enable.
-
-## Contribution Workflow
-
-### Development Setup
-
-To get started with development, you'll need to set up a local environment.
-
-1.  Fork the repository on GitHub.
-2.  Clone your fork locally:
-    ```bash
-    git clone https://github.com/your-username/soweak.git
-    cd soweak
-    ```
-3.  Create a virtual environment and install the dependencies:
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    pip install -e ".[dev]"
-    ```
-
-### Pull Request Process
-
-1.  Create a new branch for your feature or bug fix:
-    ```bash
-    git checkout -b feature/your-amazing-feature
-    ```
-2.  Make your changes. Ensure you adhere to the coding style.
-3.  Run the tests to ensure everything is working correctly:
-    ```bash
-    pytest
-    ```
-4.  Commit your changes with a clear commit message.
-5.  Push your branch to your fork:
-    ```bash
-    git push origin feature/your-amazing-feature
-    ```
-6.  Open a pull request from your fork to the main `soweak` repository. Provide a clear description of the changes you've made.
-
-### Coding Style
-
-- We use **Black** for code formatting and **isort** for import sorting. Before committing, please run these tools to format your code:
-  ```bash
-  black .
-  isort .
-  ```
-- We use **mypy** for static type checking. Please ensure your code passes type checking:
-  ```bash
-  mypy soweak
-  ```
-
-### Testing
-
-Please add tests for any new features or bug fixes. `soweak` uses `pytest`. You can run the full test suite with:
+## Setup
 
 ```bash
+git clone https://github.com/SoubhikGhosh/soweak.git
+cd soweak
+python -m venv venv && source venv/bin/activate
+pip install -e ".[dev,all]"
 pytest
 ```
 
+## What good contributions look like
+
+### New pattern (LLM01 / LLM02 / LLM07 input)
+
+Add to the relevant pack in [`soweak/detectors/patterns.py`](soweak/detectors/patterns.py):
+
+- Use the lowest severity that still represents a real threat.
+- Use `re.IGNORECASE` unless case matters.
+- Set `confidence` honestly — 0.95+ is reserved for well-known token formats
+  (AWS keys, GitHub PATs). Heuristic phrases should sit around 0.6–0.85.
+- Add at least one positive and one negative test in `tests/test_detectors.py`.
+
+### New detector
+
+Subclass `soweak.Detector` in a new module under `soweak/detectors/`. Wire
+it up in `soweak/detectors/__init__.py` only if it's general enough to be a
+default.
+
+### New enforcer
+
+Subclass `soweak.Enforcer` and add to `soweak/enforcers.py`. Re-export
+from the top-level `soweak.__init__` only for the general cases.
+
+### New adapter
+
+Add `soweak/adapters/<name>.py` plus an example in `examples/<name>_example.py`.
+The adapter MUST:
+
+- Lazy-import the third-party library and raise an `ImportError` with the
+  correct `pip install soweak[<extra>]` hint if missing.
+- Raise `soweak.adapters.errors.SecurityError` on a BLOCK decision.
+- Cover input *and* output boundaries when both are meaningful.
+
+## Code style
+
+- `black .` (line length 100)
+- `isort .` (profile = black)
+- `ruff check .`
+- `mypy soweak`
+- Public API has type hints; internal helpers may be inferred.
+
+## Tests
+
+- Use `pytest`. Tests live in `tests/`, mirror the module layout.
+- Don't add network-dependent tests; mock SDKs at the adapter boundary.
+- New patterns require coverage in `tests/test_detectors.py`.
+
+## Pull requests
+
+- One logical change per PR.
+- Update `CHANGELOG.md` under the unreleased section.
+- Update `ROADMAP.md` if your change shifts coverage in or out of a phase.
+- A passing CI is required; do not skip pre-commit hooks (`--no-verify`).
+
 ## License
 
-By contributing to `soweak`, you agree that your contributions will be licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for more details.
+Contributions are licensed under Apache-2.0, the same license as the project.

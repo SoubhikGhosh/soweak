@@ -1,128 +1,80 @@
 # Changelog
 
-All notable changes to soweak will be documented in this file.
+All notable changes to soweak are documented here. The project adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format of
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [2.0.1] - 2026-01-20
+## [3.0.0] — 2026-05-11
 
-### Fixed
-- Detection patterns now correctly identify all README example prompts as unsafe
-- **LLM01**: Fixed "Ignore all instructions" not being detected (previously required "previous" keyword)
-
-## [2.0.0] - 2026-01-19
+**Complete rewrite.** soweak v3 is a middleware framework, not a prompt
+scanner. Old APIs are gone.
 
 ### Added
-- **LLM03: Supply Chain Detector**: New detector for identifying supply chain vulnerabilities including:
-  - Malicious package/dependency injection from untrusted URLs
-  - Remote code execution via pipe (`curl | bash` patterns)
-  - Untrusted model/weights loading from external sources
-  - Suspicious domain detection in package URLs
-  - Plugin/extension injection from untrusted sources
-  - Dependency file manipulation attempts
 
-### Enhanced
-- **LLM05: Improper Output Handling Detector**: Added 12 new patterns:
-  - XSS detection with `<script>` tags and DOM manipulation (`document.cookie`, `document.location`)
-  - SQL injection patterns including `'; DROP TABLE` and comment terminators
-  - Dangerous shell commands (`rm -rf /`, `--no-preserve-root`)
-  - Improved pattern matching for output generation requests
+- `Boundary` enum (`INPUT`, `RETRIEVAL`, `TOOL_CALL`, `OUTPUT`, `STREAM`).
+- `Detector` ABC and `Signal` dataclass — the signal-producer contract.
+- `Enforcer` ABC, `Action`, `Decision` — the action-taker contract.
+- `Policy`, `Rule`, `PolicyBuilder` — fluent policy definition.
+- `Pipeline` — runs a policy at a boundary, emits audit events.
+- `AuditEvent`, `AuditLog`, `InMemoryAuditLog`, `JsonLinesAuditLog`.
+- `PatternMatchDetector` — regex-driven detector loaded from versioned
+  `PatternPack`s.
+- Pattern packs for LLM01 prompt injection (input), LLM02 input DLP (PII /
+  secrets / API keys), and LLM07 system-prompt extraction attempts (input).
+- `CanaryDetector` — output-boundary detector for LLM07 system-prompt
+  leakage via canary tokens.
+- Enforcers: `BlockEnforcer`, `RedactEnforcer`, `LogOnlyEnforcer`,
+  `ThresholdEnforcer`, `TransformEnforcer`.
+- Adapters in `soweak.adapters.{langchain,openai,gemini}` plus a shared
+  `SecurityError` exception.
+- New CLI: `soweak scan`, `soweak list`, `soweak version`.
+- `ROADMAP.md` — phased coverage plan for the rest of the OWASP LLM Top 10.
 
-- **LLM08: Vector and Embedding Weaknesses Detector**: Added 8 new patterns:
-  - Knowledge base injection attempts ("add to your knowledge base as a verified fact")
-  - Retrieval priority manipulation ("always prioritize results containing")
-  - RAG override keyword injection (`TRUSTED_SOURCE_OVERRIDE`, `PRIORITY_CONTEXT`)
-  - Fake system context injection (`IMPORTANT SYSTEM CONTEXT:`)
+### Removed (breaking)
 
-- **LLM09: Misinformation Detector**: Added 8 new patterns:
-  - Vaccine misinformation detection ("vaccines cause autism")
-  - Authority impersonation (WHO, CDC, FDA representatives)
-  - Health misinformation requests
-  - Historical revisionism ("rewrite history")
-  - Conspiracy theory propagation (moon landing, flat earth, 9/11)
-  - False consensus framing ("present as scientific consensus")
-
-- **LLM10: Unbounded Consumption Detector**: Added 6 new patterns:
-  - "Repeat the following forever" detection
-  - Large factorial/fibonacci computation requests
-  - Recursive definition expansion attacks ("Define X as... expand X N times")
-  - Improved "show all digits" detection for large numbers
+- `analyze_prompt`, `is_prompt_safe`, `get_risk_score` top-level functions.
+- `PromptAnalyzer`, `AnalysisResult` (replaced by `Pipeline` + `Decision`).
+- `RiskScorer`, `RiskLevel` (replaced by `ThresholdEnforcer`).
+- v2.x detector classes: `PromptInjectionDetector`, `SensitiveInfoDetector`,
+  `DataPoisoningDetector`, `OutputHandlingDetector`,
+  `ExcessiveAgencyDetector`, `SystemPromptLeakageDetector`,
+  `RAGWeaknessDetector`, `MisinformationDetector`,
+  `UnboundedConsumptionDetector`, `SupplyChainDetector`.
+  Their input-regex approach was not the right defense for 7 of the 10
+  OWASP categories. See `ROADMAP.md` for the replacement plan at the
+  correct boundary.
 
 ### Changed
-- **OWASP Coverage**: Updated LLM03 from "Partial (Input-side)" to "Full Coverage"
-- **README.md**:
-  - Added complete examples for all OWASP LLM Top 10 categories (LLM01-LLM10)
-  - Reorganized threat detection examples in numerical order
-  - Updated coverage table to reflect full LLM03 support
 
+- Minimum Python is now **3.10** (was 3.8).
+- License remains Apache-2.0.
+- Project description rewritten to reflect middleware framing.
+- Build excludes `tests/` and `examples/` from the wheel.
 
-## [1.2.0] - 2026-01-19
+### Migration
 
-### Added
-- **Framework Integrations**: Added comprehensive integration examples for:
-  - **LangChain**: `SoweakCallbackHandler`, `SoweakGuardrail`, `SecureLangChainPipeline`, secure RAG chain factory
-  - **OpenAI**: `SecureOpenAIClient`, `OpenAISecurityMiddleware`, `@secure_openai_decorator`
-  - **Google Generative AI / ADK**: `SecureGeminiClient`, `SoweakADKMiddleware`, `SecureADKAgent` base class
-- **Optional Dependencies**: Added install extras for framework integrations:
-  - `pip install soweak[langchain]`
-  - `pip install soweak[openai]`
-  - `pip install soweak[google]`
-  - `pip install soweak[all]`
-- **SEO & Discoverability**:
-  - Expanded `pyproject.toml` keywords (50+ relevant terms)
-  - Added PyPI/download badges to README
-  - Created `GITHUB_TOPICS.md` with 20 recommended repository topics
-  - Rewrote README introduction with front-loaded keywords
-- **Documentation**: Added architecture diagram and comprehensive examples for all OWASP LLM Top 10 threat categories
+See the "Migrating from v2.x" section in `README.md` for a side-by-side
+mapping of old → new APIs.
 
-### Changed
-- **README.md**: Complete rewrite with:
-  - SEO-optimized introduction
-  - Multiple badge displays (PyPI, downloads, Python versions, etc.)
-  - Framework integration quick start guides
-  - Visual architecture diagram
-  - Improved code examples
-- **pyproject.toml**: 
-  - Expanded keywords for better discoverability
-  - Added new classifiers
-  - Added optional dependencies for integrations
-  - Updated URLs
+---
 
-### Fixed
-- Updated license classifier to use correct Apache License identifier
+## [2.0.1] — 2026-01-20
 
-## [1.1.1] - 2026-01-19
+- Fixed missing detection for "Ignore all instructions" variant.
 
-### Changed
-- **Docs:** Merged the detailed usage guide into `README.md` to create a single, comprehensive source of documentation and removed the redundant `USAGE.md` file.
+## [2.0.0] — 2026-01-19
 
-### Added
-- **Docs:** Added a `CODE_OF_CONDUCT.md` to foster a welcoming community.
-- **Docs:** Expanded `CONTRIBUTING.md` with detailed guidelines for bug reports, feature requests, and the development workflow.
+- Added `SupplyChainDetector` (LLM03 input regex).
+- Expanded pattern libraries for LLM05/08/09/10.
 
-## [1.1.0] - 2026-01-19
+## [1.2.0] — 2026-01-19
 
-### Changed
-- **License:** The project license has been changed from MIT to Apache License 2.0.
-- **Docs:** Updated `README.md`, `pyproject.toml`, and `CONTRIBUTING.md` to reflect the new Apache 2.0 license.
+- LangChain / OpenAI / Google framework integrations added as examples.
 
-### Added
-- **Docs:** Created a `USAGE.md` file with detailed examples for detecting each of the OWASP LLM Top 10 threats.
+## [1.1.0] — 2026-01-19
 
-## [1.0.0] - 2025-01-19
+- License changed from MIT to Apache-2.0.
 
-### Added
+## [1.0.0] — 2025-01-19
 
-- Initial release of soweak library
-- Comprehensive prompt security analysis based on OWASP Top 10 for LLM Applications 2025
-- **Detectors:**
-  - LLM01: Prompt Injection Detector
-  - LLM02: Sensitive Information Disclosure Detector
-  - LLM04: Data and Model Poisoning Detector
-  - LLM05: Improper Output Handling Detector
-  - LLM06: Excessive Agency Detector
-  - LLM07: System Prompt Leakage Detector
-  - LLM08: Vector and Embedding Weaknesses Detector
-  - LLM09: Misinformation Detector
-  - LLM10: Unbounded Consumption Detector
-- Risk Scoring System
-- CLI Tool
-- Comprehensive documentation
+- Initial release: regex-based scanner across all 10 OWASP LLM categories.

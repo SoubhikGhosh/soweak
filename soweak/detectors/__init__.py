@@ -1,46 +1,46 @@
-"""
-Detectors package for soweak library.
+"""Built-in detectors and pattern packs.
 
-Contains all vulnerability detectors based on OWASP Top 10 for LLM Applications 2025.
+The framework is detector-agnostic — anything implementing
+:class:`soweak.core.Detector` works. This module ships the baseline detectors
+that v3.0 covers: a configurable :class:`PatternMatchDetector` and a
+:class:`CanaryDetector` for output-side system-prompt leakage.
 """
 
-from .base import (
-    BaseDetector,
-    VulnerabilityType,
-    Severity,
-    Detection,
-    DetectorResult,
+from soweak.detectors.canary import CanaryDetector
+from soweak.detectors.pattern_match import PatternMatchDetector
+from soweak.detectors.patterns import (
+    INPUT_DLP_PACK,
+    PROMPT_INJECTION_PACK,
+    SYSTEM_PROMPT_EXTRACTION_PACK,
+    Pattern,
+    PatternPack,
 )
 
-from .prompt_injection import PromptInjectionDetector
-from .sensitive_info import SensitiveInfoDetector
-from .data_poisoning import DataPoisoningDetector
-from .additional_detectors import (
-    SupplyChainDetector,
-    OutputHandlingDetector,
-    ExcessiveAgencyDetector,
-    SystemPromptLeakageDetector,
-    RAGWeaknessDetector,
-    MisinformationDetector,
-    UnboundedConsumptionDetector,
-)
+
+def prompt_injection_detector() -> PatternMatchDetector:
+    """Default LLM01 (prompt injection) detector for the input boundary."""
+    return PatternMatchDetector(PROMPT_INJECTION_PACK)
+
+
+def input_dlp_detector() -> PatternMatchDetector:
+    """Default LLM02 input DLP detector (PII / secrets / credentials)."""
+    return PatternMatchDetector(INPUT_DLP_PACK)
+
+
+def system_prompt_extraction_detector() -> PatternMatchDetector:
+    """Default LLM07 detector for system-prompt extraction attempts on input."""
+    return PatternMatchDetector(SYSTEM_PROMPT_EXTRACTION_PACK)
+
 
 __all__ = [
-    # Base classes
-    "BaseDetector",
-    "VulnerabilityType",
-    "Severity",
-    "Detection",
-    "DetectorResult",
-    # Detectors
-    "PromptInjectionDetector",
-    "SensitiveInfoDetector",
-    "SupplyChainDetector",
-    "DataPoisoningDetector",
-    "OutputHandlingDetector",
-    "ExcessiveAgencyDetector",
-    "SystemPromptLeakageDetector",
-    "RAGWeaknessDetector",
-    "MisinformationDetector",
-    "UnboundedConsumptionDetector",
+    "CanaryDetector",
+    "INPUT_DLP_PACK",
+    "PROMPT_INJECTION_PACK",
+    "Pattern",
+    "PatternMatchDetector",
+    "PatternPack",
+    "SYSTEM_PROMPT_EXTRACTION_PACK",
+    "input_dlp_detector",
+    "prompt_injection_detector",
+    "system_prompt_extraction_detector",
 ]

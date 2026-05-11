@@ -1,188 +1,191 @@
-"""
-Command-line interface for soweak library.
+"""soweak CLI.
 
-Usage:
-    soweak "Your prompt here"
-    soweak --file prompts.txt
-    soweak --prompt-file document.txt
-    soweak -p document.txt
-    soweak --json "Your prompt here"
+Subcommands:
+
+  ``soweak scan``     run a Policy against text or files
+  ``soweak version``  print the package version
+  ``soweak list``     list built-in pattern packs and their patterns
+
+The default policy applied to ``scan`` is suitable for ad-hoc auditing of
+prompts. For production use, define your own Policy in code and call
+``pipeline.run`` from your application.
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 import sys
-from typing import Optional
+from pathlib import Path
+from typing import Iterable
 
-from .analyzer import PromptAnalyzer
+from soweak import (
+    BlockEnforcer,
+    Decision,
+    Pipeline,
+    PolicyBuilder,
+    RedactEnforcer,
+    Severity,
+    __version__,
+)
+from soweak.detectors import (
+    INPUT_DLP_PACK,
+    PROMPT_INJECTION_PACK,
+    SYSTEM_PROMPT_EXTRACTION_PACK,
+    input_dlp_detector,
+    prompt_injection_detector,
+    system_prompt_extraction_detector,
+)
+from soweak.detectors.patterns import PatternPack
 
 
-def main():
-    """Main CLI entry point."""
-    parser = argparse.ArgumentParser(
-        prog="soweak",
-        description="Security OWASP Weak Prompt Detection - Analyze prompts for security vulnerabilities",
+def _default_pipeline() -> Pipeline:
+    policy = (
+        PolicyBuilder()
+        .on_input("prompt-injection")
+        .detect(prompt_injection_detector(), system_prompt_extraction_detector())
+        .enforce(BlockEnforcer(min_severity=Severity.HIGH))
+        .on_input("input-dlp")
+        .detect(input_dlp_detector())
+        .enforce(RedactEnforcer(min_severity=Severity.HIGH))
+        .build()
     )
-    
-    # Input options
-    input_group = parser.add_mutually_exclusive_group()
-    input_group.add_argument("prompt", nargs="?", help="The prompt to analyze")
-    input_group.add_argument("--file", "-f", type=str, help="File containing prompts (one per line)")
-    input_group.add_argument("--prompt-file", "-p", type=str, help="Text file to analyze as a single prompt")
-    input_group.add_argument("--stdin", action="store_true", help="Read prompt from stdin")
-    
-    # Analysis options
-    parser.add_argument("--threshold", "-t", type=float, default=30.0, help="Risk score threshold (default: 30.0)")
-    
-    # Output options
-    parser.add_argument("--json", "-j", action="store_true", help="Output results as JSON")
-    parser.add_argument("--summary", "-s", action="store_true", help="Output detailed summary report")
-    parser.add_argument("--quiet", "-q", action="store_true", help="Only output risk score and level")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed detection information")
-    
-    # Other options
-    parser.add_argument("--version", action="version", version="soweak 1.0.0")
-    parser.add_argument("--list-detectors", action="store_true", help="List all available detectors and exit")
-    
-    args = parser.parse_args()
-    
-    # Handle --list-detectors
-    if args.list_detectors:
-        analyzer = PromptAnalyzer()
-        print("Available Detectors:")
-        print("-" * 60)
-        for info in analyzer.get_detector_info():
-            print(f"\n📌 {info['name']}")
-            print(f"   Type: {info['vulnerability_type']}")
-            print(f"   {info['description']}")
-        return 0
-    
-    # Get prompt(s) to analyze
-    prompts = []
-    source_files = []  # Track source file names for reporting
-    
+    return Pipeline(policy)
+
+
+def _iter_inputs(args: argparse.Namespace) -> Iterable[tuple[str, str]]:
+    """Yield (source, text) pairs from the CLI args."""
+    if args.text:
+        yield "<arg>", args.text
+    for path in args.file:
+        yield path, Path(path).read_text(encoding="utf-8")
     if args.stdin:
-        prompts = [sys.stdin.read().strip()]
-        source_files = ["<stdin>"]
-    elif args.prompt_file:
-        # Read entire file as a single prompt
-        try:
-            with open(args.prompt_file, "r", encoding="utf-8") as f:
-                content = f.read().strip()
-                if content:
-                    prompts = [content]
-                    source_files = [args.prompt_file]
-                else:
-                    print(f"Error: File is empty: {args.prompt_file}", file=sys.stderr)
-                    return 1
-        except FileNotFoundError:
-            print(f"Error: File not found: {args.prompt_file}", file=sys.stderr)
-            return 1
-        except UnicodeDecodeError:
-            print(f"Error: Unable to decode file (not valid UTF-8): {args.prompt_file}", file=sys.stderr)
-            return 1
-        except PermissionError:
-            print(f"Error: Permission denied: {args.prompt_file}", file=sys.stderr)
-            return 1
-    elif args.file:
-        try:
-            with open(args.file, "r", encoding="utf-8") as f:
-                prompts = [line.strip() for line in f if line.strip()]
-                source_files = [f"{args.file}:{i+1}" for i in range(len(prompts))]
-        except FileNotFoundError:
-            print(f"Error: File not found: {args.file}", file=sys.stderr)
-            return 1
-        except UnicodeDecodeError:
-            print(f"Error: Unable to decode file (not valid UTF-8): {args.file}", file=sys.stderr)
-            return 1
-    elif args.prompt:
-        prompts = [args.prompt]
-        source_files = ["<argument>"]
-    else:
-        parser.print_help()
-        return 0
-    
-    if not prompts:
-        print("Error: No prompt provided", file=sys.stderr)
-        return 1
-    
-    # Create analyzer
-    analyzer = PromptAnalyzer(risk_threshold=args.threshold)
-    
-    # Analyze prompts
-    results = []
-    exit_code = 0
-    
-    for prompt in prompts:
-        result = analyzer.analyze(prompt)
-        results.append(result)
-        
-        if not result.is_safe:
-            exit_code = 1
-    
-    # Output results
-    if args.json:
-        if len(results) == 1:
-            output = results[0].to_dict()
-            if source_files:
-                output["source"] = source_files[0]
-            print(json.dumps(output, indent=2, default=str))
-        else:
-            output = []
-            for i, r in enumerate(results):
-                d = r.to_dict()
-                if source_files and i < len(source_files):
-                    d["source"] = source_files[i]
-                output.append(d)
-            print(json.dumps(output, indent=2, default=str))
-    elif args.summary:
-        for i, result in enumerate(results):
-            if len(results) > 1:
-                print(f"\n{'='*60}")
-                print(f"PROMPT {i+1}/{len(results)}")
-                if source_files and i < len(source_files):
-                    print(f"Source: {source_files[i]}")
-            elif source_files and args.prompt_file:
-                print(f"Analyzing: {source_files[0]}")
-            print(result.summary())
-    elif args.quiet:
-        for i, result in enumerate(results):
-            status = "UNSAFE" if not result.is_safe else "SAFE"
-            source = ""
-            if source_files and i < len(source_files):
-                source = f" [{source_files[i]}]"
-            print(f"{result.risk_score:.1f} {result.risk_level.value} {status}{source}")
-    else:
-        for i, (prompt, result) in enumerate(zip(prompts, results)):
-            if len(results) > 1:
-                print(f"\n--- Prompt {i+1}/{len(results)} ---")
-                if source_files and i < len(source_files):
-                    print(f"Source: {source_files[i]}")
-                print(f"Input: {prompt[:50]}{'...' if len(prompt) > 50 else ''}")
-            elif args.prompt_file:
-                print(f"📄 Analyzing file: {args.prompt_file}")
-                print(f"   Size: {len(prompt)} characters")
-            
-            status_icon = "⚠️ " if not result.is_safe else "✅"
-            print(f"{status_icon} Risk Score: {result.risk_score}/100")
-            print(f"   Risk Level: {result.risk_level.value}")
-            print(f"   Status: {'UNSAFE' if not result.is_safe else 'SAFE'}")
-            print(f"   Detections: {result.total_detections}")
-            
-            if args.verbose and result.total_detections > 0:
-                print("\n   Findings:")
-                for dr in result.detector_results:
-                    if dr.has_detections:
-                        for d in dr.detections[:3]:
-                            print(f"   • [{d.severity.name}] {d.description}")
-                
-                if result.recommendations:
-                    print("\n   Recommendations:")
-                    for rec in result.recommendations[:3]:
-                        print(f"   → {rec}")
-    
-    return exit_code
+        yield "<stdin>", sys.stdin.read()
+
+
+def _format_human(source: str, text: str, decision: Decision) -> str:
+    lines = [f"── {source} ──", f"action: {decision.action.value}"]
+    if decision.reason:
+        lines.append(f"reason: {decision.reason}")
+    for s in decision.signals:
+        snippet = (s.matched_text or "")[:80]
+        lines.append(
+            f"  • [{s.category.value} {s.severity.label}] "
+            f"{s.message}  confidence={s.confidence:.2f}"
+            + (f"  match={snippet!r}" if snippet else "")
+        )
+    if decision.action.value == "redact" and decision.payload.text != text:
+        lines.append(f"redacted: {decision.payload.text}")
+    return "\n".join(lines)
+
+
+def _format_json(source: str, text: str, decision: Decision) -> str:
+    return json.dumps(
+        {
+            "source": source,
+            "action": decision.action.value,
+            "reason": decision.reason,
+            "input": text,
+            "output": decision.payload.text,
+            "signals": [
+                {
+                    "detector": s.detector,
+                    "category": s.category.value,
+                    "severity": s.severity.label,
+                    "confidence": s.confidence,
+                    "message": s.message,
+                    "matched_text": s.matched_text,
+                    "span": list(s.span) if s.span else None,
+                    "attack_type": s.metadata.get("attack_type"),
+                }
+                for s in decision.signals
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+
+def _cmd_scan(args: argparse.Namespace) -> int:
+    pipeline = _default_pipeline()
+    inputs = list(_iter_inputs(args))
+    if not inputs:
+        print(
+            "error: no input provided (use --stdin, --file, or pass text)",
+            file=sys.stderr,
+        )
+        return 2
+    any_blocked = False
+    formatter = _format_json if args.json else _format_human
+    for source, text in inputs:
+        decision = pipeline.check_input(text)
+        print(formatter(source, text, decision))
+        if decision.blocked:
+            any_blocked = True
+    return 1 if any_blocked else 0
+
+
+def _cmd_list(args: argparse.Namespace) -> int:
+    packs: list[PatternPack] = [
+        PROMPT_INJECTION_PACK,
+        INPUT_DLP_PACK,
+        SYSTEM_PROMPT_EXTRACTION_PACK,
+    ]
+    for pack in packs:
+        print(
+            f"# {pack.name} ({pack.category.value}, v{pack.version}) — "
+            f"{len(pack.patterns)} patterns"
+        )
+        if args.verbose:
+            for p in pack.patterns:
+                print(f"  [{p.severity.label}] {p.description}")
+                print(f"    regex: {p.regex}")
+        print()
+    return 0
+
+
+def _cmd_version(args: argparse.Namespace) -> int:
+    print(__version__)
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="soweak",
+        description="OWASP LLM Top 10 security middleware framework — CLI",
+    )
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    scan = sub.add_parser("scan", help="Scan text/files against the default policy")
+    scan.add_argument("text", nargs="?", help="Text to scan (positional)")
+    scan.add_argument(
+        "-f",
+        "--file",
+        action="append",
+        default=[],
+        metavar="FILE",
+        help="Read text from FILE (may be repeated)",
+    )
+    scan.add_argument("--stdin", action="store_true", help="Read text from stdin")
+    scan.add_argument("--json", action="store_true", help="Emit JSON output")
+    scan.set_defaults(func=_cmd_scan)
+
+    listcmd = sub.add_parser("list", help="List built-in pattern packs")
+    listcmd.add_argument(
+        "-v", "--verbose", action="store_true", help="Show individual patterns"
+    )
+    listcmd.set_defaults(func=_cmd_list)
+
+    ver = sub.add_parser("version", help="Print the soweak version")
+    ver.set_defaults(func=_cmd_version)
+
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    return args.func(args)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())
