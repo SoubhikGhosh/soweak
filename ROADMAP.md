@@ -169,13 +169,24 @@ Deferred:
 - A curated default blocklist (kept user-supplied for now; ships with
   no opinion on third-party packages).
 
-## Phase 5 — Observability & ecosystem (v3.5)
+## Phase 5 — Observability & ecosystem (v3.5) ✅
 
-- OpenTelemetry exporter for `AuditEvent`s.
-- Prebuilt Grafana / Datadog dashboards.
-- Policy-as-code repo template.
-- Red-team CLI: replay an OWASP probe corpus against any policy, produce a
-  coverage report.
+What shipped:
+
+- **`soweak.observability`** — `OpenTelemetryAuditLog`: every
+  `AuditEvent` becomes a span, signals become span events. Optional via
+  `pip install soweak[otel]`.
+- **`soweak.redteam`** — bundled `DEFAULT_PROBES`, `run_probes`,
+  `coverage_report`, `load_corpus`; `soweak redteam [--policy
+  MODULE:ATTR] [--corpus FILE] [--json]` runs an OWASP probe corpus
+  against any policy and prints per-category coverage. Use as a CI
+  gate after policy changes.
+
+Deferred:
+
+- Pre-built Grafana / Datadog dashboards (external; will land as a
+  docs PR with JSON snippets).
+- Policy-as-code repo template (also docs).
 
 ## Honest coverage after roadmap
 

@@ -9,6 +9,7 @@ Subcommands:
   ``soweak audit deps``     enumerate installed packages, check blocklist (LLM03)
   ``soweak audit canaries`` run a canary corpus through a model callable (LLM04)
   ``soweak audit policy``   lint a soweak Policy for misconfigurations
+  ``soweak redteam``        replay the OWASP probe corpus, report coverage
 
 The default policy applied to ``scan`` is suitable for ad-hoc auditing of
 prompts. For production use, define your own Policy in code and call
@@ -253,6 +254,63 @@ def _cmd_audit_canaries(args: argparse.Namespace) -> int:
     return 0 if not failed else 1
 
 
+def _cmd_redteam(args: argparse.Namespace) -> int:
+    """Replay an OWASP probe corpus through a Policy; report coverage."""
+    import importlib
+
+    from soweak.core.policy import Policy
+    from soweak.redteam import (
+        DEFAULT_PROBES,
+        Pipeline as _Pipeline,
+        coverage_report,
+        load_corpus,
+        run_probes,
+    )
+
+    if args.policy:
+        module_path, _, attr = args.policy.rpartition(":")
+        if not module_path or not attr:
+            print(f"error: --policy must be MODULE:ATTR, got {args.policy!r}", file=sys.stderr)
+            return 2
+        module = importlib.import_module(module_path)
+        obj = getattr(module, attr)
+        if callable(obj):
+            obj = obj()
+        if not isinstance(obj, Policy):
+            print(f"error: {args.policy!r} did not yield a Policy", file=sys.stderr)
+            return 2
+        pipeline = _Pipeline(obj)
+    else:
+        pipeline = _default_pipeline()
+
+    probes = load_corpus(args.corpus) if args.corpus else list(DEFAULT_PROBES)
+    results = run_probes(pipeline, probes)
+    coverage = coverage_report(results)
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "results": [r.as_dict() for r in results],
+                    "coverage": [c.as_dict() for c in coverage],
+                },
+                ensure_ascii=False,
+            )
+        )
+    else:
+        for r in results:
+            status = "BLOCKED" if r.blocked else "passed"
+            name = r.probe.name or r.probe.prompt[:40]
+            print(f"[{status:7}] {r.probe.category.value} {name}")
+        print()
+        print(f"{'category':8} {'blocked/total':>13}  {'rate':>6}")
+        for c in coverage:
+            print(
+                f"{c.category.value:8} {c.blocked:>5}/{c.total:<5}  {c.rate * 100:>5.0f}%"
+            )
+    return 0
+
+
 def _cmd_audit_policy(args: argparse.Namespace) -> int:
     import importlib
 
@@ -365,6 +423,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ap.add_argument("--json", action="store_true", help="Emit JSON issues")
     ap.set_defaults(func=_cmd_audit_policy)
+
+    redteam = sub.add_parser(
+        "redteam",
+        help="Replay an OWASP probe corpus against a Policy; report coverage",
+    )
+    redteam.add_argument(
+        "--policy",
+        metavar="MODULE:ATTR",
+        help="Importable Policy (or callable returning one); default is the built-in",
+    )
+    redteam.add_argument(
+        "--corpus",
+        metavar="JSON",
+        help="Path to a JSON probe corpus; default is the bundled set",
+    )
+    redteam.add_argument("--json", action="store_true", help="Emit JSON output")
+    redteam.set_defaults(func=_cmd_redteam)
 
     return p
 

@@ -25,7 +25,8 @@ pip install soweak                  # core, zero dependencies
 pip install "soweak[langchain]"     # LangChain adapter
 pip install "soweak[openai]"        # OpenAI adapter
 pip install "soweak[google]"        # Gemini adapter
-pip install "soweak[all]"           # all adapters
+pip install "soweak[otel]"          # OpenTelemetry audit-log exporter
+pip install "soweak[all]"           # all extras
 ```
 
 Python ≥ 3.10.
@@ -291,9 +292,20 @@ soweak scan --file prompts.txt --json
 soweak scan --stdin < prompts.txt
 soweak list --verbose
 soweak version
+
+# Build/CI tooling (Phase 4)
+soweak audit model ./weights.bin --manifest manifest.json
+soweak audit deps --blocklist blocked-packages.txt
+soweak audit canaries --corpus canaries.json --model mymod:call_llm
+soweak audit policy mypolicy:policy
+
+# Coverage report against the bundled OWASP probe corpus (Phase 5)
+soweak redteam                                # default policy + bundled corpus
+soweak redteam --policy mypolicy:policy --json
 ```
 
-Exits with code 1 when any input is BLOCKed — useful in CI.
+Exits non-zero on failure (BLOCK on `scan`, mismatch on `audit model`,
+any failing canary, hard error on `audit policy`).
 
 ---
 

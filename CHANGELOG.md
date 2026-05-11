@@ -4,6 +4,44 @@ All notable changes to soweak are documented here. The project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.5.0] — 2026-05-11
+
+Phase 5 of the OWASP roadmap: observability and a red-team CLI. soweak
+now covers every defendable layer of the OWASP LLM Top 10.
+
+### Added
+
+- **`soweak.observability`** — `OpenTelemetryAuditLog`: bridges every
+  `AuditEvent` into an OTEL span (one span per boundary invocation,
+  signals attached as span events). Opt-in via `pip install soweak[otel]`.
+  Matched text is **not** recorded by default (it often contains the
+  sensitive value you're trying not to leak); set
+  `record_matched_text=True` to include it.
+- **`soweak.redteam`** — probe runner:
+  - Bundled `DEFAULT_PROBES` covering LLM01 / LLM02 / LLM07 attack
+    surface (11 probes).
+  - `Probe`, `ProbeResult`, `CategoryCoverage` dataclasses.
+  - `run_probes(pipeline, probes=DEFAULT_PROBES)` — execute each probe
+    at its declared boundary.
+  - `coverage_report(results)` — per-category blocked/total/rate.
+  - `load_corpus(path)` — JSON corpus loader (validates category +
+    boundary).
+- **CLI: `soweak redteam`** — replay the probe corpus against the
+  default policy or any importable `MODULE:ATTR` Policy. Outputs a
+  per-category coverage table or JSON. Useful as the final smoke test
+  in CI before shipping a policy change.
+- New `[otel]` install extra; added to `[all]`.
+- 20 new tests (red-team runner, coverage, custom corpus / custom
+  policy via CLI, OTEL adapter — gracefully skips when SDK absent).
+
+### Coverage milestone
+
+soweak v3.5 ships defenses at the **correct boundary** for **all 10
+OWASP LLM categories**, with honest framing in the README where any
+defense is partial. See `ROADMAP.md` for the per-category status.
+
+---
+
 ## [3.4.0] — 2026-05-11
 
 Phase 4 of the OWASP roadmap: build- and deploy-time audit tooling for
