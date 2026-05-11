@@ -29,8 +29,9 @@ pip install "soweak[openai]"        # OpenAI adapter
 pip install "soweak[google]"        # Gemini adapter
 pip install "soweak[otel]"          # OpenTelemetry audit-log exporter
 pip install "soweak[yaml]"          # YAML policy DSL
-pip install "soweak[ml]"            # transformers + torch (LLM01 classifier)
-pip install "soweak[all]"           # everything except [ml]
+pip install "soweak[ml]"            # transformers + torch (classifiers / toxicity)
+pip install "soweak[embeddings]"    # sentence-transformers (semantic grounding)
+pip install "soweak[all]"           # everything except [ml] / [embeddings]
 ```
 
 Python ≥ 3.10. The core is pure Python; every adapter and the ML classifier
@@ -276,42 +277,92 @@ Implement `CounterStore` / `WindowStore` against your storage of choice
 
 ---
 
-## ML-augmented prompt-injection detection (LLM01)
+## ML augmentation
 
-Regex catches naive injections. A learned classifier catches paraphrases and
-novel jailbreaks. The detector is dependency-free — bring any
-`Callable[[str], float]` returning an injection probability.
+`MLClassifierDetector` is a dependency-free detector that consults any
+`Callable[[str], float]` returning a probability. soweak ships three families
+of pre-built classifiers on top of it.
 
-```python
-from soweak import MLClassifierDetector, PolicyBuilder, BlockEnforcer, Severity
-
-def my_classifier(text: str) -> float:
-    return my_existing_model.predict(text)
-
-policy = (
-    PolicyBuilder()
-    .on_input("ml")
-        .detect(MLClassifierDetector(classifier=my_classifier, threshold=0.85))
-        .enforce(BlockEnforcer(min_severity=Severity.HIGH))
-    .build()
-)
-```
-
-Or use the bundled Hugging Face factory:
+### Prompt injection / jailbreak (LLM01)
 
 ```bash
 pip install "soweak[ml]"
 ```
 
 ```python
-from soweak.ml import MLClassifierDetector, transformers_classifier
+from soweak import MLClassifierDetector, BlockEnforcer, Severity
+from soweak.ml import transformers_classifier, KNOWN_INJECTION_MODELS
+
+# Defaults come from a model registry — pick any supported model by name.
+classifier = transformers_classifier(
+    model="protectai/deberta-v3-base-prompt-injection-v2",  # default
+    device="cpu",
+)
+detector = MLClassifierDetector(classifier=classifier, threshold=0.85)
+```
+
+Models with built-in defaults: ProtectAI DeBERTa v1 & v2, Meta
+Prompt-Guard-86M, Meta Llama-Prompt-Guard-2 (22M and 86M, gated),
+jailbreak-classifier. See `KNOWN_INJECTION_MODELS` for the full list and
+config.
+
+### Toxicity / offensive content (LLM05, output boundary)
+
+```python
+from soweak.ml import transformers_toxicity_classifier
+from soweak import OwaspCategory, Boundary
 
 detector = MLClassifierDetector(
-    classifier=transformers_classifier(
-        "protectai/deberta-v3-base-prompt-injection-v2"
-    ),
-    threshold=0.85,
+    classifier=transformers_toxicity_classifier(),  # unitary/toxic-bert
+    threshold=0.5,
+    category=OwaspCategory.LLM05_OUTPUT_HANDLING,
+    severity=Severity.HIGH,
+    boundaries=(Boundary.OUTPUT,),
+    name="toxicity",
 )
+```
+
+Defaults exist for `unitary/toxic-bert`, `unitary/unbiased-toxic-roberta`,
+`martin-ha/toxic-comment-model`, `cardiffnlp/twitter-roberta-base-offensive`.
+
+### LLM-as-judge
+
+Any LLM client becomes a soweak classifier via a one-line adapter:
+
+```python
+from openai import OpenAI
+from soweak.ml import llm_judge_classifier
+
+client = OpenAI()
+
+def gpt_judge(prompt: str) -> str:
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0,
+    )
+    return resp.choices[0].message.content or ""
+
+detector = MLClassifierDetector(
+    classifier=llm_judge_classifier(gpt_judge),
+    threshold=0.7,
+)
+```
+
+The bundled `DEFAULT_JUDGE_PROMPT_TEMPLATE` asks for a single float in
+`[0, 1]`. Override `prompt_template` and/or `score_parser` for richer
+rubrics.
+
+### Bring your own classifier
+
+If you already have a model (sklearn, ONNX, an internal HTTP service)
+nothing extra is required:
+
+```python
+def my_classifier(text: str) -> float:
+    return my_existing_model.predict_proba(text)[0, 1]
+
+detector = MLClassifierDetector(classifier=my_classifier, threshold=0.85)
 ```
 
 ---
@@ -354,21 +405,43 @@ Accepts dict-shaped, LangChain-style, or plain-string documents.
 
 ## Grounding & citations (LLM09 — partial)
 
+Two grounding detectors ship out of the box, each with a different cost /
+accuracy tradeoff.
+
 ```python
 from soweak import Context
 from soweak.grounding import (
     CitationRequiredDetector,
-    GroundingDetector,
+    GroundingDetector,           # lexical overlap, stdlib-only, fast
     RETRIEVED_TEXT_KEY,
 )
 
 ctx = Context(metadata={RETRIEVED_TEXT_KEY: retrieval_context})
-# Then add CitationRequiredDetector / GroundingDetector to on_output rules.
+# Add CitationRequiredDetector / GroundingDetector to on_output rules.
 ```
 
-Soweak's grounding check is a lexical-overlap heuristic. It will not catch
-plausible fabrications that share vocabulary with the source. Treat signals
-as "worth a human look", not "definitely false."
+For paraphrase-resistant semantic grounding (cosine similarity over
+sentence embeddings):
+
+```bash
+pip install "soweak[embeddings]"
+```
+
+```python
+from soweak import EmbeddingGroundingDetector
+from soweak.embeddings import sentence_transformer_embedder
+
+detector = EmbeddingGroundingDetector(
+    embedder=sentence_transformer_embedder(),  # all-MiniLM-L6-v2 default
+    threshold=0.55,
+)
+```
+
+Embedding-based grounding catches ungrounded claims that share vocabulary
+with the source — the lexical detector cannot. Neither detector is a
+fact-checker: a plausible fabrication that paraphrases the source closely
+will pass either check. Treat signals as "worth a human look", not
+"definitely false."
 
 ---
 

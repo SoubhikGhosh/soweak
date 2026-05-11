@@ -4,6 +4,74 @@ All notable changes to soweak are documented here. The project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.10.0] — 2026-05-11
+
+More ML integrations. soweak now ships:
+
+* Known-model defaults for the popular prompt-injection / jailbreak
+  classifiers — drop a model name into `transformers_classifier` and
+  the label index + max length are looked up automatically.
+* A parallel `transformers_toxicity_classifier` for the OUTPUT boundary.
+* An LLM-as-judge adapter so any LLM completion callable becomes a
+  classifier without writing custom code.
+* Embedding-based grounding (LLM09 semantic) — cosine similarity
+  between output sentences and the retrieval context. Strict upgrade
+  over the lexical-overlap heuristic.
+
+### Added
+
+- **`soweak.ml`** expansions:
+  - `KNOWN_INJECTION_MODELS` — registry covering
+    `protectai/deberta-v3-base-prompt-injection-v2` (default),
+    `protectai/deberta-v3-base-prompt-injection`,
+    `meta-llama/Prompt-Guard-86M`,
+    `meta-llama/Llama-Prompt-Guard-2-86M`,
+    `meta-llama/Llama-Prompt-Guard-2-22M`,
+    `jackhhao/jailbreak-classifier`.
+  - `KNOWN_TOXICITY_MODELS` — `unitary/toxic-bert` (default),
+    `unitary/unbiased-toxic-roberta`, `martin-ha/toxic-comment-model`,
+    `cardiffnlp/twitter-roberta-base-offensive`.
+  - `transformers_classifier(model, ...)` now auto-applies known-model
+    defaults. Parameter renamed: `injection_label_index` →
+    `positive_label_index` (generalised across injection / toxicity /
+    arbitrary binary classifiers).
+  - `transformers_toxicity_classifier(model=DEFAULT_TOXICITY_MODEL, ...)`
+    — same shape, defaults tuned for toxicity. Pair with
+    `MLClassifierDetector` on the OUTPUT boundary.
+  - `llm_judge_classifier(judge, prompt_template, score_parser)` —
+    wraps any `Callable[[str], str]` LLM completion as a soweak
+    classifier. Bring any OpenAI / Anthropic / Gemini / local client;
+    no extras required.
+  - `DEFAULT_JUDGE_PROMPT_TEMPLATE` exported.
+- **`soweak.embeddings`** — new module:
+  - `EmbeddingGroundingDetector(embedder, threshold, ...)` — flags
+    output sentences whose cosine similarity to the retrieval context
+    falls below threshold. Dependency-free if you bring an embedder.
+  - `Embedder` type alias: `Callable[[list[str]], list[list[float]]]`.
+  - `cosine_similarity(a, b)` helper.
+  - `sentence_transformer_embedder(model, device, normalize)` factory
+    backed by `sentence-transformers`; default model
+    `sentence-transformers/all-MiniLM-L6-v2` (384-d).
+  - `KNOWN_EMBEDDING_MODELS` documented list.
+- Top-level re-exports: `EmbeddingGroundingDetector`,
+  `cosine_similarity`.
+- New extras: `[embeddings]` (pulls `sentence-transformers` +
+  transformers + torch).
+- 28 new tests (toxicity factory, llm_judge parser edge cases,
+  known-model registries, embedder shape, fake-embedder grounding,
+  per-sentence signal emission, validation).
+
+### Honest framing
+
+- Embedding-based grounding is closer to "did the model see this in the
+  context" than to "is this true." A plausible paraphrase that shares
+  the source's semantics will pass. Use it as a stronger heuristic than
+  lexical overlap, not as a fact-checker.
+- Meta's `Prompt-Guard-*` models are gated; users must accept the
+  license on Hugging Face and authenticate before download.
+
+---
+
 ## [3.9.0] — 2026-05-11
 
 Declarative policy DSL and a major README rewrite reflecting v3.6–v3.9.

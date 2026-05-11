@@ -95,6 +95,10 @@ from soweak.storage import (
 )
 from soweak.streaming import RepetitionDetector
 from soweak.ml import MLClassifierDetector
+from soweak.embeddings import (
+    EmbeddingGroundingDetector,
+    cosine_similarity,
+)
 from soweak.config import build_policy, load_policy
 from soweak.rag import (
     IndirectInjectionDetector,
@@ -107,7 +111,7 @@ from soweak.grounding import (
     GroundingDetector,
 )
 
-__version__ = "3.9.0"
+__version__ = "3.10.0"
 
 __all__ = [
     # version
@@ -167,8 +171,11 @@ __all__ = [
     "WindowStore",
     # streaming (LLM10)
     "RepetitionDetector",
-    # ML classifier (LLM01 ML augmentation)
+    # ML classifier (LLM01 ML augmentation, LLM05 toxicity, LLM-as-judge)
     "MLClassifierDetector",
+    # embedding-based grounding (LLM09 semantic)
+    "EmbeddingGroundingDetector",
+    "cosine_similarity",
     # declarative policy loader
     "build_policy",
     "load_policy",
