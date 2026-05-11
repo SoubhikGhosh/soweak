@@ -4,6 +4,40 @@ All notable changes to soweak are documented here. The project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.9.0] — 2026-05-11
+
+Declarative policy DSL and a major README rewrite reflecting v3.6–v3.9.
+
+### Added
+
+- **`soweak.config`** — declarative policy loader:
+  - `load_policy(path)` from YAML (`.yaml`/`.yml`) or JSON (anything
+    else; format=`json|yaml` overrides).
+  - `build_policy(dict)` for in-memory dict specs.
+  - `DEFAULT_DETECTOR_REGISTRY` covers all 16 built-in detector types:
+    `prompt_injection`, `input_dlp`, `system_prompt_extraction`,
+    `output_dlp`, `output_html`, `output_sql`, `output_shell`,
+    `canary`, `indirect_injection`, `tenant_isolation`, `provenance`,
+    `retrieval_anomaly`, `citation_required`, `grounding`,
+    `repetition`, `pattern_match` (with inline `pack:` spec for custom
+    pattern packs).
+  - `DEFAULT_ENFORCER_REGISTRY`: `block`, `redact`, `log_only`,
+    `threshold`.
+  - Custom types via `detector_registry=` / `enforcer_registry=` kwargs.
+- Top-level re-exports: `load_policy`, `build_policy`.
+- YAML support requires `pip install soweak[yaml]`; JSON works without
+  extras.
+
+### Changed
+
+- **README rewritten** to reflect the v3.0–v3.9 surface: OWASP coverage
+  table, architecture, sync + async + streaming, declarative policies,
+  tool authorization, budgets with persistent stores, ML classifier
+  augmentation, RAG / grounding / output handling, audit + OTEL, CLI.
+  Honest framing throughout (LLM09 partial, LLM03/04 build-time).
+
+---
+
 ## [3.8.0] — 2026-05-11
 
 ML classifier as an optional Detector. Regex misses paraphrased and

@@ -4,32 +4,90 @@
 [![Python](https://img.shields.io/pypi/pyversions/soweak.svg)](https://pypi.org/project/soweak/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-**OWASP LLM Top 10 security middleware framework for Python.**
+**An OWASP-aligned security middleware framework for LLM applications.**
 
-soweak gives you boundary hooks (`on_input`, `on_retrieval`, `on_tool_call`,
-`on_output`) for any LLM application — LangChain, OpenAI, Anthropic, Gemini,
-LiteLLM — wired to detectors that emit signals and enforcers that take
-actions (allow, warn, redact, transform, block). Every decision is auditable.
+soweak puts a defense at every boundary of an LLM pipeline — user input,
+retrieved documents, tool calls, model output, streaming tokens. You wire it
+into LangChain, OpenAI, Anthropic, Gemini, LiteLLM, or anything else; you
+get block / redact / transform / require-approval decisions with a full audit
+trail.
 
-> **Honest positioning.** Only **LLM01 (Prompt Injection)** is solvable by
-> scanning a user prompt. The other 9 OWASP LLM categories need a defense at
-> the *right place* in the pipeline. soweak's job is to put a defense at that
-> place. See the [Roadmap](ROADMAP.md) for the coverage plan.
+> **Honest scope.** Of the OWASP LLM Top 10, only LLM01 (Prompt Injection)
+> can be defended by scanning the user's prompt. The other nine require a
+> defense at the *right* layer — retrieval, tool authorization, output
+> sanitization, budgets, build-time integrity. soweak provides each. Where
+> we ship a heuristic (LLM09 grounding) it's labelled as such.
 
 ---
 
 ## Install
 
 ```bash
-pip install soweak                  # core, zero dependencies
+pip install soweak                  # core, zero runtime dependencies
 pip install "soweak[langchain]"     # LangChain adapter
 pip install "soweak[openai]"        # OpenAI adapter
 pip install "soweak[google]"        # Gemini adapter
 pip install "soweak[otel]"          # OpenTelemetry audit-log exporter
-pip install "soweak[all]"           # all extras
+pip install "soweak[yaml]"          # YAML policy DSL
+pip install "soweak[ml]"            # transformers + torch (LLM01 classifier)
+pip install "soweak[all]"           # everything except [ml]
 ```
 
-Python ≥ 3.10.
+Python ≥ 3.10. The core is pure Python; every adapter and the ML classifier
+are opt-in extras.
+
+---
+
+## OWASP LLM coverage
+
+| OWASP                              | Layer where defended                     | Status        |
+| ---------------------------------- | ---------------------------------------- | ------------- |
+| **LLM01** Prompt Injection         | input scan + indirect-injection over retrieved/tool text + optional ML classifier | ✅            |
+| **LLM02** Sensitive Information    | bidirectional DLP (input + output)       | ✅            |
+| **LLM03** Supply Chain             | `soweak audit model` / `deps` build-time CLI | ✅ (build-time) |
+| **LLM04** Data & Model Poisoning   | `soweak audit canaries` deploy-time battery | ⚠️ advisory  |
+| **LLM05** Improper Output Handling | HTML/SQL/shell detectors + HTML sanitizer + URL allowlist | ✅      |
+| **LLM06** Excessive Agency         | `@guarded_tool` scopes + human approval + rate limit + audit | ✅   |
+| **LLM07** System Prompt Leakage    | extraction-pattern pack + canary detector | ✅           |
+| **LLM08** Vector & Embedding       | tenant isolation + provenance + retrieval anomaly + indirect injection | ✅ |
+| **LLM09** Misinformation           | citation requirement + lexical grounding heuristic | ⚠️ partial |
+| **LLM10** Unbounded Consumption    | token + cost budgets, rate limits, streaming repetition detector | ✅ |
+
+LLM03/04 are build-time concerns and ship as the `soweak audit` CLI. LLM09
+is honestly partial — soweak is not a fact-checker.
+
+See [`ROADMAP.md`](ROADMAP.md) for the per-version history.
+
+---
+
+## Architecture
+
+```text
+       ┌────────────────────────────────────────────────────────────────────┐
+       │                            your app                                │
+       │                                                                    │
+user ──┼──▶ on_input ──▶ retriever ──▶ on_retrieval ──▶ LLM ──▶ tool?       │
+       │      │              │                          │       │           │
+       │      ▼              ▼                          ▼       ▼           │
+       │   pipeline       pipeline                  on_output  on_tool_call │
+       │      │              │                          │       │           │
+       │      ▼              ▼                          ▼       ▼           │
+       │   decision       decision                   decision  decision     │
+       └────────────────────────────────────────────────────────────────────┘
+```
+
+Six core abstractions:
+
+| Type                  | Role                                                       |
+| --------------------- | ---------------------------------------------------------- |
+| **`Boundary`**        | Where in the pipeline a payload is being inspected.        |
+| **`Detector`**        | Inspects a `Payload`; emits zero or more `Signal`s.        |
+| **`Enforcer`**        | Reads signals, returns a `Decision` (allow/warn/redact/transform/require-approval/block). |
+| **`Policy`**          | Ordered list of rules (boundary + detectors + enforcer).   |
+| **`Pipeline`**        | Runs a policy at a boundary; writes to an `AuditLog`. Sync and async. |
+| **`StreamingPipeline`** | Guards an async iterator of text chunks (e.g. an LLM streaming response). |
+
+Build a `Policy` once. Share the `Pipeline` everywhere.
 
 ---
 
@@ -72,158 +130,294 @@ decision = pipeline.check_input(
 )
 print(decision.action)        # Action.BLOCK
 print(decision.reason)        # "max severity critical >= high"
-print(decision.signals[0].message)
 ```
 
----
-
-## Architecture
-
-```text
-       ┌──────────────────────────────────────────────────────────────┐
-       │                          your app                            │
-       │                                                              │
-user ──┼──▶ on_input ──▶ retriever ──▶ on_retrieval ──▶ LLM ──▶ tool? │
-       │      │              │                          │       │     │
-       │      ▼              ▼                          ▼       ▼     │
-       │   pipeline       pipeline                  on_output  on_tool_call
-       │      │              │                          │       │     │
-       │      ▼              ▼                          ▼       ▼     │
-       │   decision       decision                   decision  decision
-       └──────────────────────────────────────────────────────────────┘
-```
-
-Five core abstractions:
-
-| Type            | Role                                                              |
-| --------------- | ----------------------------------------------------------------- |
-| **`Boundary`**  | Where in the pipeline a payload is inspected.                     |
-| **`Detector`**  | Inspects a `Payload` and emits zero or more `Signal`s.            |
-| **`Enforcer`**  | Reads signals, returns a `Decision` (allow/warn/redact/block).    |
-| **`Policy`**    | Ordered list of rules (boundary + detectors + enforcer).          |
-| **`Pipeline`**  | Runs a policy at the right boundary; writes to an `AuditLog`.     |
-
-Build a `Policy` once; share the `Pipeline` everywhere.
-
----
-
-## Boundaries
-
-| Boundary             | What flows                       | What v3.1 ships built-in                                                |
-| -------------------- | -------------------------------- | ----------------------------------------------------------------------- |
-| `Boundary.INPUT`     | user prompts                     | LLM01 + LLM07 extraction + LLM02 input DLP                              |
-| `Boundary.RETRIEVAL` | retrieved documents              | (v3.3) indirect injection + tenant isolation                            |
-| `Boundary.TOOL_CALL` | LLM-requested tool invocations   | (v3.2) tool authorization + budgets                                     |
-| `Boundary.OUTPUT`    | model responses                  | LLM02 output DLP + LLM05 (HTML/SQL/shell) + LLM07 canary + HTML sanitizer |
-| `Boundary.STREAM`    | streaming chunks                 | (v3.2) repetition detection                                             |
-
-The framework exposes all five today. You can already attach custom
-`Detector`s and `Enforcer`s to any boundary in v3.0; the boxes marked v3.x
-are *built-in* coverage we ship in those releases.
-
----
-
-## OWASP LLM coverage (v3.0)
-
-| OWASP                          | v3.0 ships                                  |
-| ------------------------------ | ------------------------------------------- |
-| LLM01 Prompt Injection         | ✅ pattern pack + indirect markers           |
-| LLM02 Sensitive Info           | ✅ bidirectional DLP (input + output)        |
-| LLM03 Supply Chain             | ✅ `soweak audit model/deps` CLI (build-time) |
-| LLM04 Data Poisoning           | ⚠️ `soweak audit canaries` deploy-time battery |
-| LLM05 Output Handling          | ✅ HTML/SQL/shell detectors + HTML sanitizer |
-| LLM06 Excessive Agency         | ✅ tool authorization (scopes/approval/rate) |
-| LLM07 System Prompt Leakage    | ✅ extraction pack + canary detector         |
-| LLM08 Vector & Embedding       | ✅ tenant isolation + indirect injection + provenance + anomaly |
-| LLM09 Misinformation           | ⚠️ citation + lexical grounding (heuristic)  |
-| LLM10 Unbounded Consumption    | ✅ token+cost budgets, rate limits, repetition |
-
-See [`ROADMAP.md`](ROADMAP.md) for the phased plan.
-
----
-
-## Built-in detectors
+### Async
 
 ```python
-from soweak.detectors import (
-    # input boundary
-    prompt_injection_detector,            # LLM01
-    input_dlp_detector,                   # LLM02 (input)
-    system_prompt_extraction_detector,    # LLM07 (input)
-    # output boundary
-    output_dlp_detector,                  # LLM02 (output)
-    output_html_detector,                 # LLM05 — risky HTML
-    output_sql_detector,                  # LLM05 — risky SQL
-    output_shell_detector,                # LLM05 — risky shell
-    CanaryDetector,                       # LLM07 (output)
-    # generic
-    PatternMatchDetector,
-)
-from soweak.detectors.patterns import (
-    PROMPT_INJECTION_PACK,
-    INPUT_DLP_PACK,
-    SYSTEM_PROMPT_EXTRACTION_PACK,
-    OUTPUT_DLP_PACK,
-    OUTPUT_HTML_PACK,
-    OUTPUT_SQL_PACK,
-    OUTPUT_SHELL_PACK,
-    Pattern, PatternPack,
-)
+decision = await pipeline.acheck_input(user_text)
 ```
 
-### Output sanitizers (LLM05)
+All built-in detectors and enforcers work in `arun` unchanged. Override
+`Detector.ainspect` / `Enforcer.adecide` when you need real I/O (a hosted
+classifier, an external policy engine).
+
+### Streaming
+
+```python
+from soweak import StreamingPipeline
+
+stream = StreamingPipeline(pipeline, scan_every_chars=200)
+
+async def safe_response():
+    async for chunk in stream.guard(llm_async_stream(prompt), ctx):
+        yield chunk
+```
+
+`StreamingPipeline` raises `soweak.adapters.errors.SecurityError` the moment
+a STREAM rule blocks; downstream consumption stops.
+
+---
+
+## Declarative policies (YAML / JSON)
+
+```yaml
+# policy.yaml
+version: 1
+rules:
+  - name: prompt-injection
+    boundary: input
+    detectors:
+      - type: prompt_injection
+    enforcer:
+      type: block
+      min_severity: high
+
+  - name: dlp
+    boundary: input
+    detectors:
+      - type: input_dlp
+    enforcer:
+      type: redact
+      min_severity: high
+
+  - name: canary
+    boundary: output
+    detectors:
+      - type: canary
+        tokens: ["x7K2-PRODSEC-9F4E"]
+    enforcer:
+      type: block
+      min_severity: critical
+```
+
+```python
+from soweak import Pipeline, load_policy
+
+pipeline = Pipeline(load_policy("policy.yaml"))
+```
+
+Every built-in detector and enforcer has a registered `type` string. Add your
+own by passing `detector_registry=` / `enforcer_registry=` to `load_policy`
+or `build_policy`. JSON works without extras; YAML requires
+`pip install soweak[yaml]`.
+
+---
+
+## Tool authorization (LLM06)
+
+```python
+from soweak import authorize, guarded_tool, Context
+
+@guarded_tool(
+    scopes=["email:send"],
+    approval="human",
+    rate_limit_per_minute=5,
+    approval_handler=lambda call: input(f"Approve {call.tool}? [y/N] ") == "y",
+)
+def send_email(to: str, subject: str, body: str) -> None:
+    ...
+
+ctx = Context(
+    user_id="alice",
+    metadata={"granted_scopes": frozenset({"email:send"})},
+)
+with authorize(ctx):
+    send_email("user@example.com", "subject", "body")
+```
+
+Scopes are checked, rate limit is enforced, the approval handler runs, every
+attempt is auditable via `ctx.metadata["tool_audit_callback"]`. Works
+identically across threads and `asyncio` tasks (`contextvars` under the hood).
+
+---
+
+## Budgets & rate limits (LLM10)
 
 ```python
 from soweak import (
-    sanitize_html,             # strip risky HTML, keep an allowlist
-    is_safe_sql,               # heuristic SQL safety check
-    URLAllowlist,              # scheme + host predicate
-    html_sanitizer_enforcer,   # TransformEnforcer wrapping sanitize_html
+    Pipeline, PolicyBuilder, BudgetEnforcer, RateLimitEnforcer,
+    TokenBudget, CostBudget, SqliteCounterStore, SqliteWindowStore,
 )
+
+# Persisted across restarts; safe for a single host. Multi-host needs Redis.
+token_budget = TokenBudget(
+    limit=1_000_000,
+    store=SqliteCounterStore("/var/lib/soweak/budget.db"),
+)
+cost_budget = CostBudget(
+    limit_usd=50.0,
+    store=SqliteCounterStore("/var/lib/soweak/cost.db"),
+)
+
+pipeline = Pipeline(
+    PolicyBuilder()
+    .on_input("rate-limit")
+        .enforce(RateLimitEnforcer(
+            requests_per_minute=30,
+            store=SqliteWindowStore("/var/lib/soweak/rl.db"),
+        ))
+    .on_input("budget-gate")
+        .enforce(BudgetEnforcer(token_budget, scope_attr="user_id"))
+    .build()
+)
+
+# Pre-call: the budget enforcer blocks if the scope is already exhausted.
+decision = pipeline.check_input(user_text, ctx)
+# Post-call (after your LLM call returns): charge actual usage.
+token_budget.charge(scope=ctx.user_id, tokens=response.usage.total_tokens)
+cost_budget.charge(ctx.user_id, "gpt-4o-mini",
+                   input_tokens=resp.usage.prompt_tokens,
+                   output_tokens=resp.usage.completion_tokens)
+```
+
+Implement `CounterStore` / `WindowStore` against your storage of choice
+(Redis, Postgres, DynamoDB) for multi-replica deployments.
+
+---
+
+## ML-augmented prompt-injection detection (LLM01)
+
+Regex catches naive injections. A learned classifier catches paraphrases and
+novel jailbreaks. The detector is dependency-free — bring any
+`Callable[[str], float]` returning an injection probability.
+
+```python
+from soweak import MLClassifierDetector, PolicyBuilder, BlockEnforcer, Severity
+
+def my_classifier(text: str) -> float:
+    return my_existing_model.predict(text)
 
 policy = (
     PolicyBuilder()
-    .on_output("html-sanitize")
-        .enforce(html_sanitizer_enforcer())
+    .on_input("ml")
+        .detect(MLClassifierDetector(classifier=my_classifier, threshold=0.85))
+        .enforce(BlockEnforcer(min_severity=Severity.HIGH))
     .build()
 )
 ```
 
-### Custom pattern packs
+Or use the bundled Hugging Face factory:
+
+```bash
+pip install "soweak[ml]"
+```
 
 ```python
-from soweak.detectors import PatternMatchDetector
-from soweak.detectors.patterns import Pattern, PatternPack
-from soweak import OwaspCategory, Severity, Boundary
+from soweak.ml import MLClassifierDetector, transformers_classifier
 
-my_pack = PatternPack(
-    name="company-policy",
-    category=OwaspCategory.LLM02_SENSITIVE_INFO,
-    patterns=(
-        Pattern(
-            regex=r"\bproject[-\s]*aurora\b",
-            severity=Severity.HIGH,
-            description="Internal code-name leak",
-            attack_type="codename",
-        ),
+detector = MLClassifierDetector(
+    classifier=transformers_classifier(
+        "protectai/deberta-v3-base-prompt-injection-v2"
     ),
+    threshold=0.85,
 )
-my_detector = PatternMatchDetector(my_pack, boundaries=(Boundary.INPUT, Boundary.OUTPUT))
 ```
 
 ---
 
-## Built-in enforcers
+## RAG defenses (LLM08)
 
-| Enforcer              | What it does                                              |
-| --------------------- | --------------------------------------------------------- |
-| `BlockEnforcer`       | Block at or above `min_severity`; WARN below; ALLOW empty |
-| `RedactEnforcer`      | Replace matched spans with placeholder                    |
-| `LogOnlyEnforcer`     | Never modifies; emits signals only                        |
-| `ThresholdEnforcer`   | Score = Σ severity × confidence; block / warn / allow     |
-| `TransformEnforcer`   | Run a user-supplied `str -> str` function on the payload  |
+```python
+from soweak import Pipeline, PolicyBuilder, BlockEnforcer, Severity, Context
+from soweak.rag import (
+    IndirectInjectionDetector,
+    TenantIsolationDetector,
+    ProvenanceDetector,
+    RetrievalAnomalyDetector,
+)
 
-Write your own by subclassing `soweak.Enforcer`.
+pipeline = Pipeline(
+    PolicyBuilder()
+    .on_retrieval("rag-gate")
+        .detect(
+            IndirectInjectionDetector(),
+            TenantIsolationDetector(),
+            ProvenanceDetector(),
+            RetrievalAnomalyDetector(),
+        )
+        .enforce(BlockEnforcer(min_severity=Severity.CRITICAL))
+    .build()
+)
+
+# Tag every request with its tenant.
+ctx = Context(tenant_id="acme")
+
+decision = pipeline.check_retrieval(retrieved_docs, ctx)
+if decision.blocked:
+    raise SecurityError(decision.reason)
+```
+
+Accepts dict-shaped, LangChain-style, or plain-string documents.
+
+---
+
+## Grounding & citations (LLM09 — partial)
+
+```python
+from soweak import Context
+from soweak.grounding import (
+    CitationRequiredDetector,
+    GroundingDetector,
+    RETRIEVED_TEXT_KEY,
+)
+
+ctx = Context(metadata={RETRIEVED_TEXT_KEY: retrieval_context})
+# Then add CitationRequiredDetector / GroundingDetector to on_output rules.
+```
+
+Soweak's grounding check is a lexical-overlap heuristic. It will not catch
+plausible fabrications that share vocabulary with the source. Treat signals
+as "worth a human look", not "definitely false."
+
+---
+
+## Output handling (LLM05)
+
+```python
+from soweak import (
+    PolicyBuilder, BlockEnforcer, Severity,
+    sanitize_html, URLAllowlist, is_safe_sql, html_sanitizer_enforcer,
+)
+from soweak.detectors import (
+    output_dlp_detector,
+    output_html_detector,
+    output_sql_detector,
+    output_shell_detector,
+)
+
+policy = (
+    PolicyBuilder()
+    .on_output("dlp")
+        .detect(output_dlp_detector())
+        .enforce(BlockEnforcer(min_severity=Severity.HIGH))
+    .on_output("html")
+        .enforce(html_sanitizer_enforcer())    # transforms, doesn't block
+    .build()
+)
+
+# Standalone helpers
+clean = sanitize_html("<p>hi</p><script>bad()</script>")
+URLAllowlist(schemes={"https"}).is_safe("https://docs.example.com/x")
+is_safe_sql("SELECT id FROM users WHERE id = ?")
+```
+
+---
+
+## Audit log
+
+```python
+from soweak import Pipeline, InMemoryAuditLog, JsonLinesAuditLog
+from soweak.observability import OpenTelemetryAuditLog   # pip install soweak[otel]
+
+pipeline = Pipeline(policy, audit=JsonLinesAuditLog("/var/log/soweak.jsonl"))
+```
+
+Every `Pipeline.run` records one `AuditEvent` with the boundary, the signals,
+the decision, and the request context. The OTEL exporter turns each event
+into a span, signals into span events, decision into span attributes —
+matched text is **not** recorded by default (it often contains the sensitive
+value you didn't want to leak).
 
 ---
 
@@ -264,69 +458,55 @@ model = SecureGemini(genai.GenerativeModel("gemini-1.5-flash"), pipeline=pipelin
 resp = model.generate_content("...")
 ```
 
-Adapters raise `soweak.adapters.errors.SecurityError` on a BLOCK decision.
-
-See [`examples/`](examples/) for full runnable scripts.
-
----
-
-## Audit log
-
-```python
-from soweak import InMemoryAuditLog, JsonLinesAuditLog
-
-audit = JsonLinesAuditLog("/var/log/soweak.jsonl")
-pipeline = Pipeline(policy, audit=audit)
-```
-
-Every `Pipeline.run` records one `AuditEvent` containing the boundary,
-signals, final decision, and request context.
+All adapters raise `soweak.adapters.errors.SecurityError` on a BLOCK decision.
+Full runnable scripts in [`examples/`](examples/).
 
 ---
 
 ## CLI
 
 ```bash
+# Scan
 soweak scan "Ignore all previous instructions"
 soweak scan --file prompts.txt --json
 soweak scan --stdin < prompts.txt
 soweak list --verbose
 soweak version
 
-# Build/CI tooling (Phase 4)
+# Build / CI tooling
 soweak audit model ./weights.bin --manifest manifest.json
 soweak audit deps --blocklist blocked-packages.txt
 soweak audit canaries --corpus canaries.json --model mymod:call_llm
 soweak audit policy mypolicy:policy
 
-# Coverage report against the bundled OWASP probe corpus (Phase 5)
-soweak redteam                                # default policy + bundled corpus
+# Replay the OWASP probe corpus against your policy, print coverage
 soweak redteam --policy mypolicy:policy --json
 ```
 
-Exits non-zero on failure (BLOCK on `scan`, mismatch on `audit model`,
-any failing canary, hard error on `audit policy`).
+Exit codes are non-zero on failure — `scan` on BLOCK, `audit model` on
+mismatch, `audit canaries` on any failure, `audit policy` on errors.
 
 ---
 
-## Migrating from v2.x
+## Compatibility
 
-v3.0 is a clean break. The old `analyze_prompt`, `PromptAnalyzer`,
-`RiskScorer`, and the 10 monolithic detectors are gone. The replacement model
-is `Policy` + `Pipeline` + `Detector` + `Enforcer`.
+- Python ≥ 3.10
+- Sync API stable since v3.0; async/streaming added in v3.6
+- Storage backends added in v3.7; budgets keep the same `charge/consumed/remaining/reset` interface
+- ML classifier added in v3.8 (`MLClassifierDetector`)
+- YAML/JSON policy DSL added in v3.9
 
-| v2.x                                           | v3.0                                                        |
-| ---------------------------------------------- | ----------------------------------------------------------- |
-| `analyze_prompt(text)`                         | `pipeline.check_input(text)`                                |
-| `PromptInjectionDetector().detect(text)`       | `prompt_injection_detector().inspect(payload, ctx)`         |
-| `MisinformationDetector`, `DataPoisoningDetector`, `SupplyChainDetector`, `ExcessiveAgencyDetector`, `RAGWeaknessDetector`, `OutputHandlingDetector`, `UnboundedConsumptionDetector` | **Removed.** These were input-regex theatre for problems that need defenses at other boundaries. See ROADMAP for replacements at the correct boundary. |
-| `RiskScorer`, `RiskLevel`                      | Use `ThresholdEnforcer` or a custom `Enforcer`              |
+The public API on `soweak.*` (anything importable from the top-level
+package) follows semver: breaking changes only on majors. Pattern packs may
+gain patterns in minor releases; removals only on majors.
 
 ---
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). New defenses go at the *right*
+boundary — that's the whole architectural premise. New input regex packs
+that try to "cover" output-boundary problems will be rejected.
 
 ## License
 

@@ -95,6 +95,7 @@ from soweak.storage import (
 )
 from soweak.streaming import RepetitionDetector
 from soweak.ml import MLClassifierDetector
+from soweak.config import build_policy, load_policy
 from soweak.rag import (
     IndirectInjectionDetector,
     ProvenanceDetector,
@@ -106,7 +107,7 @@ from soweak.grounding import (
     GroundingDetector,
 )
 
-__version__ = "3.8.0"
+__version__ = "3.9.0"
 
 __all__ = [
     # version
@@ -168,6 +169,9 @@ __all__ = [
     "RepetitionDetector",
     # ML classifier (LLM01 ML augmentation)
     "MLClassifierDetector",
+    # declarative policy loader
+    "build_policy",
+    "load_policy",
     # RAG (LLM08)
     "IndirectInjectionDetector",
     "ProvenanceDetector",
