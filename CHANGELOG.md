@@ -4,6 +4,38 @@ All notable changes to soweak are documented here. The project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.7.0] — 2026-05-11
+
+State persistence for budgets and rate limits. Production deployments
+with multiple replicas can now share state via a SQLite file, and any
+single-replica deployment can survive restarts without losing budgets.
+
+### Added
+
+- **`soweak.storage`** — two pluggable interfaces:
+  - `CounterStore.add(key, delta, limit=None)` atomic add-or-reject.
+  - `WindowStore.record(key, ts, window)` sliding-window event store.
+- Backends:
+  - `InMemoryCounterStore` / `InMemoryWindowStore` (default; reset on restart).
+  - `SqliteCounterStore(path)` / `SqliteWindowStore(path)` —
+    file-backed, restart-survival, single-host. Multi-host deployments
+    can subclass either ABC for Redis / Postgres / DynamoDB.
+- `TokenBudget`, `CostBudget` accept a `store=CounterStore(...)` argument.
+- `RateLimiter`, `RateLimitEnforcer` accept `store=WindowStore(...)` and
+  `window_seconds=` (default 60).
+- Top-level re-exports of all six storage symbols.
+
+### Changed
+
+- `TokenBudget` / `CostBudget` internal state moved out of in-class
+  dicts and into the store. Default backend (in-memory) is unchanged
+  semantically — existing code keeps working without modification.
+- Atomic check-and-charge now goes through `CounterStore.add(limit=...)`,
+  which avoids the rollback race that existed in the previous
+  in-class-lock implementation.
+
+---
+
 ## [3.6.0] — 2026-05-11
 
 Async surface and streaming-output guard.

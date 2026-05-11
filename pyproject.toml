@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "soweak"
-version = "3.6.0"
+version = "3.7.0"
 description = "OWASP LLM Top 10 security middleware framework for Python: input/output/retrieval/tool-call boundary hooks, prompt-injection detection, canary-based system-prompt leakage detection, audit logging, and adapters for LangChain, OpenAI, and Google Gemini."
 readme = "README.md"
 license = {text = "Apache-2.0"}

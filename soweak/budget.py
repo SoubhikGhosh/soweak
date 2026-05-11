@@ -35,6 +35,12 @@ from typing import Any, Mapping
 from soweak.core.detector import Signal
 from soweak.core.enforcer import Action, Decision, Enforcer
 from soweak.core.types import Context, OwaspCategory, Payload, Severity
+from soweak.storage import (
+    CounterStore,
+    InMemoryCounterStore,
+    InMemoryWindowStore,
+    WindowStore,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -63,15 +69,25 @@ class BudgetExceededError(RuntimeError):
 
 class TokenBudget:
     """Tracks integer token consumption per scope key (e.g. user, session,
-    request). Thread-safe."""
+    request).
 
-    def __init__(self, limit: int, name: str = "token-budget") -> None:
+    Backed by a pluggable :class:`~soweak.storage.CounterStore`. Defaults to
+    in-process :class:`InMemoryCounterStore`; swap in
+    :class:`~soweak.storage.SqliteCounterStore` (or your own Redis/Postgres
+    backend) to persist across restarts and share across replicas.
+    """
+
+    def __init__(
+        self,
+        limit: int,
+        name: str = "token-budget",
+        store: CounterStore | None = None,
+    ) -> None:
         if limit <= 0:
             raise ValueError("limit must be positive")
         self._limit = limit
         self._name = name
-        self._consumed: dict[str, int] = {}
-        self._lock = threading.Lock()
+        self._store: CounterStore = store or InMemoryCounterStore()
 
     @property
     def name(self) -> str:
@@ -81,33 +97,35 @@ class TokenBudget:
     def limit(self) -> int:
         return self._limit
 
+    @property
+    def store(self) -> CounterStore:
+        return self._store
+
+    def _key(self, scope: str) -> str:
+        return f"{self._name}:{scope}"
+
     def charge(self, scope: str, tokens: int) -> int:
         """Charge ``tokens`` against ``scope``. Returns new total. Raises
         :class:`BudgetExceededError` if the charge would exceed the limit."""
         if tokens < 0:
             raise ValueError("tokens must be non-negative")
-        with self._lock:
-            current = self._consumed.get(scope, 0)
-            new = current + tokens
-            if new > self._limit:
-                raise BudgetExceededError(self._name, scope, self._limit, new)
-            self._consumed[scope] = new
-            return new
+        new = self._store.add(self._key(scope), float(tokens), limit=float(self._limit))
+        if new is None:
+            attempted = self._store.get(self._key(scope)) + tokens
+            raise BudgetExceededError(self._name, scope, self._limit, attempted)
+        return int(new)
 
     def consumed(self, scope: str) -> int:
-        with self._lock:
-            return self._consumed.get(scope, 0)
+        return int(self._store.get(self._key(scope)))
 
     def remaining(self, scope: str) -> int:
-        with self._lock:
-            return max(0, self._limit - self._consumed.get(scope, 0))
+        return max(0, self._limit - self.consumed(scope))
 
     def reset(self, scope: str | None = None) -> None:
-        with self._lock:
-            if scope is None:
-                self._consumed.clear()
-            else:
-                self._consumed.pop(scope, None)
+        if scope is None:
+            self._store.reset()
+        else:
+            self._store.reset(self._key(scope))
 
 
 # ---------------------------------------------------------------------------
@@ -145,14 +163,15 @@ class CostBudget:
         limit_usd: float,
         pricing: Mapping[str, ModelPricing] | None = None,
         name: str = "cost-budget",
+        store: CounterStore | None = None,
     ) -> None:
         if limit_usd <= 0:
             raise ValueError("limit_usd must be positive")
         self._limit = float(limit_usd)
         self._name = name
         self._pricing: dict[str, ModelPricing] = dict(pricing) if pricing is not None else dict(DEFAULT_PRICING)
-        self._consumed: dict[str, float] = {}
-        self._lock = threading.Lock()
+        self._pricing_lock = threading.Lock()
+        self._store: CounterStore = store or InMemoryCounterStore()
 
     @property
     def name(self) -> str:
@@ -162,8 +181,15 @@ class CostBudget:
     def limit(self) -> float:
         return self._limit
 
+    @property
+    def store(self) -> CounterStore:
+        return self._store
+
+    def _key(self, scope: str) -> str:
+        return f"{self._name}:{scope}"
+
     def register_pricing(self, model: str, pricing: ModelPricing) -> None:
-        with self._lock:
+        with self._pricing_lock:
             self._pricing[model] = pricing
 
     def _cost_of(self, model: str, input_tokens: int, output_tokens: int) -> float:
@@ -181,27 +207,23 @@ class CostBudget:
         self, scope: str, model: str, input_tokens: int, output_tokens: int
     ) -> float:
         cost = self._cost_of(model, input_tokens, output_tokens)
-        with self._lock:
-            new = self._consumed.get(scope, 0.0) + cost
-            if new > self._limit:
-                raise BudgetExceededError(self._name, scope, self._limit, new)
-            self._consumed[scope] = new
-            return new
+        new = self._store.add(self._key(scope), cost, limit=self._limit)
+        if new is None:
+            attempted = self._store.get(self._key(scope)) + cost
+            raise BudgetExceededError(self._name, scope, self._limit, attempted)
+        return float(new)
 
     def consumed(self, scope: str) -> float:
-        with self._lock:
-            return self._consumed.get(scope, 0.0)
+        return float(self._store.get(self._key(scope)))
 
     def remaining(self, scope: str) -> float:
-        with self._lock:
-            return max(0.0, self._limit - self._consumed.get(scope, 0.0))
+        return max(0.0, self._limit - self.consumed(scope))
 
     def reset(self, scope: str | None = None) -> None:
-        with self._lock:
-            if scope is None:
-                self._consumed.clear()
-            else:
-                self._consumed.pop(scope, None)
+        if scope is None:
+            self._store.reset()
+        else:
+            self._store.reset(self._key(scope))
 
 
 # ---------------------------------------------------------------------------
@@ -254,29 +276,43 @@ class BudgetEnforcer(Enforcer):
 
 
 class RateLimiter:
-    """Sliding-window in-process rate limiter. Per (scope) per 60s."""
+    """Sliding-window rate limiter, backed by a pluggable :class:`WindowStore`.
 
-    def __init__(self, requests_per_minute: int) -> None:
+    Defaults to :class:`InMemoryWindowStore`; swap in
+    :class:`~soweak.storage.SqliteWindowStore` for restart-survival or a
+    custom Redis-backed store for multi-host.
+    """
+
+    def __init__(
+        self,
+        requests_per_minute: int,
+        store: WindowStore | None = None,
+        window_seconds: float = 60.0,
+    ) -> None:
         if requests_per_minute <= 0:
             raise ValueError("requests_per_minute must be positive")
+        if window_seconds <= 0:
+            raise ValueError("window_seconds must be positive")
         self._limit = requests_per_minute
-        self._timestamps: dict[str, list[float]] = {}
-        self._lock = threading.Lock()
+        self._window = window_seconds
+        self._store: WindowStore = store or InMemoryWindowStore()
 
     @property
     def limit(self) -> int:
         return self._limit
 
+    @property
+    def store(self) -> WindowStore:
+        return self._store
+
     def allow(self, scope: str) -> bool:
         now = time.time()
-        with self._lock:
-            bucket = self._timestamps.setdefault(scope, [])
-            cutoff = now - 60.0
-            bucket[:] = [t for t in bucket if t > cutoff]
-            if len(bucket) >= self._limit:
-                return False
-            bucket.append(now)
-            return True
+        # First check the count under the current window; only record when
+        # there's room. This avoids inflating the bucket on rejected requests.
+        if self._store.count(scope, now, self._window) >= self._limit:
+            return False
+        count = self._store.record(scope, now, self._window)
+        return count <= self._limit
 
 
 class RateLimitEnforcer(Enforcer):
@@ -287,8 +323,12 @@ class RateLimitEnforcer(Enforcer):
         requests_per_minute: int,
         scope_attr: str = "user_id",
         name: str = "rate-limit",
+        store: WindowStore | None = None,
+        window_seconds: float = 60.0,
     ) -> None:
-        self._limiter = RateLimiter(requests_per_minute)
+        self._limiter = RateLimiter(
+            requests_per_minute, store=store, window_seconds=window_seconds
+        )
         self._scope_attr = scope_attr
         self._name = name
 

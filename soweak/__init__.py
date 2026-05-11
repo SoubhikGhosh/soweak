@@ -85,6 +85,14 @@ from soweak.budget import (
     RateLimiter,
     TokenBudget,
 )
+from soweak.storage import (
+    CounterStore,
+    InMemoryCounterStore,
+    InMemoryWindowStore,
+    SqliteCounterStore,
+    SqliteWindowStore,
+    WindowStore,
+)
 from soweak.streaming import RepetitionDetector
 from soweak.rag import (
     IndirectInjectionDetector,
@@ -97,7 +105,7 @@ from soweak.grounding import (
     GroundingDetector,
 )
 
-__version__ = "3.6.0"
+__version__ = "3.7.0"
 
 __all__ = [
     # version
@@ -148,6 +156,13 @@ __all__ = [
     "RateLimitEnforcer",
     "RateLimiter",
     "TokenBudget",
+    # storage backends
+    "CounterStore",
+    "InMemoryCounterStore",
+    "InMemoryWindowStore",
+    "SqliteCounterStore",
+    "SqliteWindowStore",
+    "WindowStore",
     # streaming (LLM10)
     "RepetitionDetector",
     # RAG (LLM08)
