@@ -4,6 +4,44 @@ All notable changes to soweak are documented here. The project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.4.0] — 2026-05-11
+
+Phase 4 of the OWASP roadmap: build- and deploy-time audit tooling for
+LLM03 (Supply Chain) and LLM04 (Data/Model Poisoning), plus a policy
+linter.
+
+### Added
+
+- **`soweak.audit_tools`** — pure-Python audit primitives:
+  - `hash_file(path, algorithm="sha256")` — streamed digest, fine for
+    multi-GB weights.
+  - `verify_against_manifest(path, manifest)` — verify a model artifact
+    against a `{filename: sha256}` manifest.
+  - `list_python_packages()` / `check_packages_against_blocklist()` —
+    enumerate installed distributions and flag any on a blocklist.
+  - `Canary`, `CanaryResult`, `run_canaries(canaries, call_model)` —
+    deploy-time behavioural canary battery for LLM04 drift detection.
+  - `lint_policy(policy)` — static checks on a soweak Policy (empty,
+    missing INPUT/OUTPUT boundaries, rules without detectors,
+    duplicate detector classes).
+- **CLI: `soweak audit <subcmd>`** —
+  - `soweak audit model PATH [--manifest JSON]`
+  - `soweak audit deps [--blocklist FILE] [--json]`
+  - `soweak audit canaries --corpus FILE --model MODULE:FUNC [--json]`
+  - `soweak audit policy MODULE:ATTR [--json]`
+- 30 new tests covering hashing, manifest verify, dep listing,
+  blocklist filter, canary runner, policy linter, and all four CLI
+  subcommands (including module-import paths for canary models and
+  policies).
+
+### Honest scope
+
+- LLM03 and LLM04 cannot be defended at inference time. The audit
+  CLI is positioned as **build/CI tooling** that runs before deploy —
+  not as runtime detection.
+
+---
+
 ## [3.3.0] — 2026-05-11
 
 Phase 3 of the OWASP roadmap: RAG-layer defenses (LLM08) and grounding /

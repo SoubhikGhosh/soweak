@@ -38,8 +38,8 @@ transform, require-approval, block). All decisions are recorded in an
 | ------------------------------ | ---------------------------------------------------- | ------------ |
 | LLM01 Prompt Injection         | Input scan + indirect-injection scan of retrieved/tool text | **v3.0**     |
 | LLM02 Sensitive Info           | Bidirectional DLP (scrub on input, scan on output)   | **v3.1**     |
-| LLM03 Supply Chain             | Build/CI tooling — model hash, SBOM, manifest checks | v3.4 (CLI)   |
-| LLM04 Data & Model Poisoning   | Behavioral canary harness at deploy time             | v3.4 (advisory) |
+| LLM03 Supply Chain             | Build/CI tooling — model hash, SBOM, manifest checks | **v3.4 (CLI)**   |
+| LLM04 Data & Model Poisoning   | Behavioral canary harness at deploy time             | **v3.4 (advisory)** |
 | LLM05 Improper Output Handling | Output sanitizer toolkit (HTML/SQL/shell/URL)        | **v3.1**     |
 | LLM06 Excessive Agency         | Tool authorization framework + human-in-the-loop     | **v3.2**     |
 | LLM07 System Prompt Leakage    | Canary tokens + output leak detector                 | **v3.0**     |
@@ -145,16 +145,29 @@ Deferred:
 - LLM-as-judge backend for grounding. The lexical-overlap heuristic is
   what we ship; a `[judge]` extras can plug in a stronger backend.
 
-## Phase 4 — Build / CI tooling (v3.4)
+## Phase 4 — Build / CI tooling (v3.4) ✅
 
-Not a runtime concern — ships as `soweak audit` subcommand.
+Ships as the `soweak audit` CLI subcommand and the `soweak.audit_tools`
+module — not a runtime concern.
 
-- **LLM03 supply-chain audit**: model SHA-256 / sigstore signature checks at
-  load time, ML dependency SBOM check, plugin manifest validator.
-- **LLM04 behavioral canaries**: a battery of known prompts run at deploy
-  time, alert on output drift (only realistic LLM04 hook for an inference
-  library).
-- Policy linter (validate `Policy` configs in CI).
+What shipped:
+
+- **LLM03 supply-chain**: `hash_file`, `verify_against_manifest`,
+  `list_python_packages`, `check_packages_against_blocklist`. CLI:
+  `soweak audit model PATH [--manifest JSON]`,
+  `soweak audit deps [--blocklist FILE]`.
+- **LLM04 behavioural canaries**: `Canary`, `CanaryResult`,
+  `run_canaries`. CLI: `soweak audit canaries --corpus FILE
+  --model MODULE:FUNC`.
+- **Policy linter**: `lint_policy(policy)`; CLI: `soweak audit policy
+  MODULE:ATTR`. Flags empty policies, missing INPUT/OUTPUT boundaries,
+  rules without detectors, and duplicate detector classes.
+
+Deferred:
+
+- Sigstore signature verification for downloaded model artifacts.
+- A curated default blocklist (kept user-supplied for now; ships with
+  no opinion on third-party packages).
 
 ## Phase 5 — Observability & ecosystem (v3.5)
 

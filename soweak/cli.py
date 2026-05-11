@@ -2,9 +2,13 @@
 
 Subcommands:
 
-  ``soweak scan``     run a Policy against text or files
-  ``soweak version``  print the package version
-  ``soweak list``     list built-in pattern packs and their patterns
+  ``soweak scan``           run a Policy against text or files
+  ``soweak list``           list built-in pattern packs and their patterns
+  ``soweak version``        print the package version
+  ``soweak audit model``    hash a file or verify against a manifest (LLM03)
+  ``soweak audit deps``     enumerate installed packages, check blocklist (LLM03)
+  ``soweak audit canaries`` run a canary corpus through a model callable (LLM04)
+  ``soweak audit policy``   lint a soweak Policy for misconfigurations
 
 The default policy applied to ``scan`` is suitable for ad-hoc auditing of
 prompts. For production use, define your own Policy in code and call
@@ -148,6 +152,137 @@ def _cmd_version(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# `soweak audit` subcommands (LLM03/04 build-time tooling)
+# ---------------------------------------------------------------------------
+
+
+def _cmd_audit_model(args: argparse.Namespace) -> int:
+    from soweak.audit_tools import hash_file, verify_against_manifest
+
+    if args.manifest:
+        ok, msg = verify_against_manifest(args.path, args.manifest)
+        print(msg)
+        return 0 if ok else 1
+    digest = hash_file(args.path, algorithm=args.algorithm)
+    print(f"{args.algorithm}  {args.path}  {digest}")
+    return 0
+
+
+def _cmd_audit_deps(args: argparse.Namespace) -> int:
+    from soweak.audit_tools import (
+        check_packages_against_blocklist,
+        list_python_packages,
+    )
+
+    blocklist: list[str] = []
+    if args.blocklist:
+        blocklist = [
+            line.strip()
+            for line in Path(args.blocklist).read_text().splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+    pkgs = list_python_packages()
+    flagged = check_packages_against_blocklist(blocklist, pkgs)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "total": len(pkgs),
+                    "flagged": [p.as_dict() for p in flagged],
+                },
+                ensure_ascii=False,
+            )
+        )
+    else:
+        print(f"{len(pkgs)} packages installed")
+        if blocklist:
+            if flagged:
+                print(f"{len(flagged)} flagged:")
+                for p in flagged:
+                    print(f"  {p.name} {p.version}")
+            else:
+                print("0 flagged against blocklist")
+        else:
+            print("(no blocklist supplied; pass --blocklist FILE to check)")
+    return 1 if flagged else 0
+
+
+def _cmd_audit_canaries(args: argparse.Namespace) -> int:
+    """Run a canary corpus through a model callable loaded from MODULE:FUNC.
+
+    The corpus file is JSON: a list of objects with keys ``prompt``,
+    ``expect_contains``, ``expect_not_contains``, ``name``.
+    The model spec is ``module.path:function_name``; the function must
+    accept a single ``str`` prompt and return a ``str``.
+    """
+    import importlib
+
+    from soweak.audit_tools import Canary, run_canaries
+
+    corpus_raw = json.loads(Path(args.corpus).read_text(encoding="utf-8"))
+    canaries = [
+        Canary(
+            prompt=item["prompt"],
+            expect_contains=tuple(item.get("expect_contains", [])),
+            expect_not_contains=tuple(item.get("expect_not_contains", [])),
+            name=item.get("name", ""),
+        )
+        for item in corpus_raw
+    ]
+
+    module_path, _, func_name = args.model.rpartition(":")
+    if not module_path or not func_name:
+        print(f"error: --model must be MODULE:FUNC, got {args.model!r}", file=sys.stderr)
+        return 2
+    module = importlib.import_module(module_path)
+    fn = getattr(module, func_name)
+
+    results = run_canaries(canaries, fn)
+    failed = [r for r in results if not r.passed]
+    if args.json:
+        print(json.dumps([r.as_dict() for r in results], ensure_ascii=False))
+    else:
+        for r in results:
+            status = "PASS" if r.passed else "FAIL"
+            name = r.canary.name or r.canary.prompt[:40]
+            print(f"[{status}] {name}")
+            for fail in r.failures:
+                print(f"    {fail}")
+        print(f"\n{len(results) - len(failed)}/{len(results)} passed")
+    return 0 if not failed else 1
+
+
+def _cmd_audit_policy(args: argparse.Namespace) -> int:
+    import importlib
+
+    from soweak.audit_tools import lint_policy
+    from soweak.core.policy import Policy
+
+    module_path, _, attr = args.policy.rpartition(":")
+    if not module_path or not attr:
+        print(f"error: --policy must be MODULE:ATTR, got {args.policy!r}", file=sys.stderr)
+        return 2
+    module = importlib.import_module(module_path)
+    obj = getattr(module, attr)
+    if callable(obj):
+        obj = obj()
+    if not isinstance(obj, Policy):
+        print(f"error: {args.policy!r} did not yield a Policy", file=sys.stderr)
+        return 2
+
+    issues = lint_policy(obj)
+    if args.json:
+        print(json.dumps([i.as_dict() for i in issues], ensure_ascii=False))
+        return 1 if any(i.severity == "error" for i in issues) else 0
+    if not issues:
+        print("ok — no issues")
+        return 0
+    for i in issues:
+        print(f"[{i.severity}] {i.message}")
+    return 1 if any(i.severity == "error" for i in issues) else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="soweak",
@@ -177,6 +312,59 @@ def build_parser() -> argparse.ArgumentParser:
 
     ver = sub.add_parser("version", help="Print the soweak version")
     ver.set_defaults(func=_cmd_version)
+
+    audit = sub.add_parser(
+        "audit", help="Build/deploy-time checks (LLM03 supply chain, LLM04 canaries, policy lint)"
+    )
+    audit_sub = audit.add_subparsers(dest="subcmd", required=True)
+
+    am = audit_sub.add_parser("model", help="Hash a file or verify against a manifest")
+    am.add_argument("path", help="Path to the model / weights file")
+    am.add_argument(
+        "--manifest",
+        metavar="JSON",
+        help="JSON file {filename: sha256}; verify rather than just hash",
+    )
+    am.add_argument(
+        "--algorithm",
+        default="sha256",
+        help="hashlib algorithm (default: sha256)",
+    )
+    am.set_defaults(func=_cmd_audit_model)
+
+    ad = audit_sub.add_parser(
+        "deps", help="Enumerate installed Python packages; optionally check a blocklist"
+    )
+    ad.add_argument(
+        "--blocklist",
+        metavar="FILE",
+        help="Path to a newline-delimited list of package names to flag",
+    )
+    ad.add_argument("--json", action="store_true", help="Emit JSON output")
+    ad.set_defaults(func=_cmd_audit_deps)
+
+    ac = audit_sub.add_parser(
+        "canaries",
+        help="Run a canary corpus (JSON) through a model callable (MODULE:FUNC)",
+    )
+    ac.add_argument("--corpus", required=True, help="Path to the JSON canary corpus")
+    ac.add_argument(
+        "--model",
+        required=True,
+        metavar="MODULE:FUNC",
+        help="Importable callable accepting prompt -> output",
+    )
+    ac.add_argument("--json", action="store_true", help="Emit JSON results")
+    ac.set_defaults(func=_cmd_audit_canaries)
+
+    ap = audit_sub.add_parser("policy", help="Lint a soweak Policy")
+    ap.add_argument(
+        "policy",
+        metavar="MODULE:ATTR",
+        help="Importable attribute that is (or returns) a Policy",
+    )
+    ap.add_argument("--json", action="store_true", help="Emit JSON issues")
+    ap.set_defaults(func=_cmd_audit_policy)
 
     return p
 

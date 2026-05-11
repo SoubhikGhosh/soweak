@@ -128,8 +128,8 @@ are *built-in* coverage we ship in those releases.
 | ------------------------------ | ------------------------------------------- |
 | LLM01 Prompt Injection         | ✅ pattern pack + indirect markers           |
 | LLM02 Sensitive Info           | ✅ bidirectional DLP (input + output)        |
-| LLM03 Supply Chain             | ❌ build-time only (v3.4 CLI)                |
-| LLM04 Data Poisoning           | ❌ training-time concern (v3.4 canaries)     |
+| LLM03 Supply Chain             | ✅ `soweak audit model/deps` CLI (build-time) |
+| LLM04 Data Poisoning           | ⚠️ `soweak audit canaries` deploy-time battery |
 | LLM05 Output Handling          | ✅ HTML/SQL/shell detectors + HTML sanitizer |
 | LLM06 Excessive Agency         | ✅ tool authorization (scopes/approval/rate) |
 | LLM07 System Prompt Leakage    | ✅ extraction pack + canary detector         |
