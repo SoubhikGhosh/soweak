@@ -37,10 +37,10 @@ transform, require-approval, block). All decisions are recorded in an
 | OWASP                          | Right defense layer                                  | soweak phase |
 | ------------------------------ | ---------------------------------------------------- | ------------ |
 | LLM01 Prompt Injection         | Input scan + indirect-injection scan of retrieved/tool text | **v3.0**     |
-| LLM02 Sensitive Info           | Bidirectional DLP (scrub on input, scan on output)   | v3.1         |
+| LLM02 Sensitive Info           | Bidirectional DLP (scrub on input, scan on output)   | **v3.1**     |
 | LLM03 Supply Chain             | Build/CI tooling — model hash, SBOM, manifest checks | v3.4 (CLI)   |
 | LLM04 Data & Model Poisoning   | Behavioral canary harness at deploy time             | v3.4 (advisory) |
-| LLM05 Improper Output Handling | Output sanitizer toolkit (HTML/SQL/shell/URL)        | v3.1         |
+| LLM05 Improper Output Handling | Output sanitizer toolkit (HTML/SQL/shell/URL)        | **v3.1**     |
 | LLM06 Excessive Agency         | Tool authorization framework + human-in-the-loop     | v3.2         |
 | LLM07 System Prompt Leakage    | Canary tokens + output leak detector                 | **v3.0**     |
 | LLM08 Vector & Embedding       | Retriever middleware + tenant isolation              | v3.3         |
@@ -79,15 +79,23 @@ What we explicitly **dropped** from v2.x because it was theatre:
 
 These all return in later phases at the correct boundary.
 
-## Phase 1 — Bidirectional I/O (v3.1)
+## Phase 1 — Bidirectional I/O (v3.1) ✅
 
-- **LLM02 bidirectional DLP**: input scrubbing before send, output scanning
-  before deliver. Optional Presidio backend via `extras=["pii"]`.
-- **LLM05 output toolkit**: `OutputSanitizer.html()`, `.sql()`, `.shell()`,
-  `.url()`. Drop-in helpers and `TransformEnforcer` factories that plug into
-  the output boundary.
+What shipped:
+
+- **LLM02 bidirectional DLP**: `output_dlp_detector()` extends the input
+  pack with internal IPs, hostnames, connection strings, JWTs, and AWS
+  ARNs.
+- **LLM05 output toolkit**: `sanitize_html()`, `URLAllowlist`,
+  `is_safe_sql()`, and the `html_sanitizer_enforcer()` `TransformEnforcer`
+  factory; plus `output_html_detector()`, `output_sql_detector()`,
+  `output_shell_detector()` for raising signals at the output boundary.
+
+What deferred to v3.1.x or later:
+
 - **LLM01 ML classifier**: optional local model via `extras=["ml"]` for
   injection cases that regex can't catch.
+- Optional Presidio backend via `extras=["pii"]`.
 - Spotlighting / delimiter encoding helpers for untrusted input spans.
 
 ## Phase 2 — Agent & runtime (v3.2)

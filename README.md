@@ -108,13 +108,13 @@ Build a `Policy` once; share the `Pipeline` everywhere.
 
 ## Boundaries
 
-| Boundary             | What flows                       | What v3.0 ships built-in                       |
-| -------------------- | -------------------------------- | ---------------------------------------------- |
-| `Boundary.INPUT`     | user prompts                     | LLM01 + LLM07 extraction + LLM02 input DLP     |
-| `Boundary.RETRIEVAL` | retrieved documents              | (v3.3) indirect injection + tenant isolation   |
-| `Boundary.TOOL_CALL` | LLM-requested tool invocations   | (v3.2) tool authorization + budgets            |
-| `Boundary.OUTPUT`    | model responses                  | LLM07 canary echo; LLM05 sanitization (v3.1)   |
-| `Boundary.STREAM`    | streaming chunks                 | (v3.2) repetition detection                    |
+| Boundary             | What flows                       | What v3.1 ships built-in                                                |
+| -------------------- | -------------------------------- | ----------------------------------------------------------------------- |
+| `Boundary.INPUT`     | user prompts                     | LLM01 + LLM07 extraction + LLM02 input DLP                              |
+| `Boundary.RETRIEVAL` | retrieved documents              | (v3.3) indirect injection + tenant isolation                            |
+| `Boundary.TOOL_CALL` | LLM-requested tool invocations   | (v3.2) tool authorization + budgets                                     |
+| `Boundary.OUTPUT`    | model responses                  | LLM02 output DLP + LLM05 (HTML/SQL/shell) + LLM07 canary + HTML sanitizer |
+| `Boundary.STREAM`    | streaming chunks                 | (v3.2) repetition detection                                             |
 
 The framework exposes all five today. You can already attach custom
 `Detector`s and `Enforcer`s to any boundary in v3.0; the boxes marked v3.x
@@ -127,10 +127,10 @@ are *built-in* coverage we ship in those releases.
 | OWASP                          | v3.0 ships                                  |
 | ------------------------------ | ------------------------------------------- |
 | LLM01 Prompt Injection         | ✅ pattern pack + indirect markers           |
-| LLM02 Sensitive Info           | ⚠️ input DLP only (output in v3.1)          |
+| LLM02 Sensitive Info           | ✅ bidirectional DLP (input + output)        |
 | LLM03 Supply Chain             | ❌ build-time only (v3.4 CLI)                |
 | LLM04 Data Poisoning           | ❌ training-time concern (v3.4 canaries)     |
-| LLM05 Output Handling          | ❌ v3.1 sanitizer toolkit                    |
+| LLM05 Output Handling          | ✅ HTML/SQL/shell detectors + HTML sanitizer |
 | LLM06 Excessive Agency         | ❌ v3.2 tool authorization                   |
 | LLM07 System Prompt Leakage    | ✅ extraction pack + canary detector         |
 | LLM08 Vector & Embedding       | ❌ v3.3 retriever middleware                 |
@@ -141,21 +141,50 @@ See [`ROADMAP.md`](ROADMAP.md) for the phased plan.
 
 ---
 
-## Built-in detectors (v3.0)
+## Built-in detectors
 
 ```python
 from soweak.detectors import (
+    # input boundary
     prompt_injection_detector,            # LLM01
     input_dlp_detector,                   # LLM02 (input)
     system_prompt_extraction_detector,    # LLM07 (input)
+    # output boundary
+    output_dlp_detector,                  # LLM02 (output)
+    output_html_detector,                 # LLM05 — risky HTML
+    output_sql_detector,                  # LLM05 — risky SQL
+    output_shell_detector,                # LLM05 — risky shell
     CanaryDetector,                       # LLM07 (output)
-    PatternMatchDetector,                 # generic regex engine
+    # generic
+    PatternMatchDetector,
 )
 from soweak.detectors.patterns import (
     PROMPT_INJECTION_PACK,
     INPUT_DLP_PACK,
     SYSTEM_PROMPT_EXTRACTION_PACK,
+    OUTPUT_DLP_PACK,
+    OUTPUT_HTML_PACK,
+    OUTPUT_SQL_PACK,
+    OUTPUT_SHELL_PACK,
     Pattern, PatternPack,
+)
+```
+
+### Output sanitizers (LLM05)
+
+```python
+from soweak import (
+    sanitize_html,             # strip risky HTML, keep an allowlist
+    is_safe_sql,               # heuristic SQL safety check
+    URLAllowlist,              # scheme + host predicate
+    html_sanitizer_enforcer,   # TransformEnforcer wrapping sanitize_html
+)
+
+policy = (
+    PolicyBuilder()
+    .on_output("html-sanitize")
+        .enforce(html_sanitizer_enforcer())
+    .build()
 )
 ```
 

@@ -61,8 +61,14 @@ from soweak.enforcers import (
     ThresholdEnforcer,
     TransformEnforcer,
 )
+from soweak.output import (
+    URLAllowlist,
+    html_sanitizer_enforcer,
+    is_safe_sql,
+    sanitize_html,
+)
 
-__version__ = "3.0.0"
+__version__ = "3.1.0"
 
 __all__ = [
     # version
@@ -92,4 +98,9 @@ __all__ = [
     "RedactEnforcer",
     "ThresholdEnforcer",
     "TransformEnforcer",
+    # output sanitisation (LLM05)
+    "URLAllowlist",
+    "html_sanitizer_enforcer",
+    "is_safe_sql",
+    "sanitize_html",
 ]

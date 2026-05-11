@@ -4,6 +4,37 @@ All notable changes to soweak are documented here. The project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.1.0] — 2026-05-11
+
+Phase 1 of the OWASP roadmap: bidirectional LLM02 and a real LLM05 toolkit.
+
+### Added
+
+- **LLM02 output DLP** — `output_dlp_detector()` factory and
+  `OUTPUT_DLP_PACK` covering every input DLP pattern plus output-specific
+  markers (RFC1918 IPs, internal hostnames, database connection strings,
+  JWT tokens, AWS ARNs).
+- **LLM05 output-handling detectors** —
+  `output_html_detector()` / `OUTPUT_HTML_PACK`,
+  `output_sql_detector()` / `OUTPUT_SQL_PACK`,
+  `output_shell_detector()` / `OUTPUT_SHELL_PACK` flag risky HTML, SQL and
+  shell content in model output.
+- **`soweak.output`** module:
+  - `sanitize_html()` — stdlib-only HTML sanitizer (allowlist tags, strip
+    `on*` handlers, drop dangerous URL schemes).
+  - `URLAllowlist` — predicate-style scheme/host validator.
+  - `is_safe_sql()` — heuristic SQL safety check.
+  - `html_sanitizer_enforcer()` — `TransformEnforcer` factory.
+- Top-level re-exports for the four new public symbols above.
+- 49 new tests covering output detectors, sanitisers and allowlists.
+
+### Changed
+
+- README and ROADMAP coverage tables updated to reflect Phase 1 status.
+- v2.x output handling is no longer "Phase 1, planned" — it's shipped.
+
+---
+
 ## [3.0.0] — 2026-05-11
 
 **Complete rewrite.** soweak v3 is a middleware framework, not a prompt
