@@ -4,6 +4,35 @@ All notable changes to soweak are documented here. The project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.8.0] — 2026-05-11
+
+ML classifier as an optional Detector. Regex misses paraphrased and
+novel injection prompts; a learned classifier fills that gap.
+
+### Added
+
+- **`soweak.ml`** — `MLClassifierDetector(classifier, threshold, ...)`
+  accepts any ``Callable[[str], float]`` returning an injection
+  probability. Yields a Signal when the probability is at or above
+  ``threshold``. The signal's ``confidence`` is the classifier's
+  probability.
+- `soweak.ml.transformers_classifier(model, device, ...)` — Hugging
+  Face factory. Loads tokenizer + model at construction time and
+  returns a thread-safe callable for use with `MLClassifierDetector`.
+  Requires `pip install soweak[ml]` (pulls `transformers` + `torch`).
+- New extras: `[ml]` (transformers + torch), `[yaml]` (PyYAML;
+  unused in v3.8, reserved for v3.9 policy loader).
+
+### Notes
+
+- The classifier protocol is intentionally dependency-free. Users can
+  plug in a small sklearn pipeline, an HTTP service, or an ONNX model
+  without installing `[ml]`.
+- `[ml]` is **not** in `[all]` — torch is hundreds of MB and we don't
+  want to surprise users opting into LangChain or OpenAI extras.
+
+---
+
 ## [3.7.0] — 2026-05-11
 
 State persistence for budgets and rate limits. Production deployments

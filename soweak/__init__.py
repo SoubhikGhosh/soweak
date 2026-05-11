@@ -94,6 +94,7 @@ from soweak.storage import (
     WindowStore,
 )
 from soweak.streaming import RepetitionDetector
+from soweak.ml import MLClassifierDetector
 from soweak.rag import (
     IndirectInjectionDetector,
     ProvenanceDetector,
@@ -105,7 +106,7 @@ from soweak.grounding import (
     GroundingDetector,
 )
 
-__version__ = "3.7.0"
+__version__ = "3.8.0"
 
 __all__ = [
     # version
@@ -165,6 +166,8 @@ __all__ = [
     "WindowStore",
     # streaming (LLM10)
     "RepetitionDetector",
+    # ML classifier (LLM01 ML augmentation)
+    "MLClassifierDetector",
     # RAG (LLM08)
     "IndirectInjectionDetector",
     "ProvenanceDetector",
