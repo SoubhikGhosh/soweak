@@ -133,8 +133,8 @@ are *built-in* coverage we ship in those releases.
 | LLM05 Output Handling          | ✅ HTML/SQL/shell detectors + HTML sanitizer |
 | LLM06 Excessive Agency         | ✅ tool authorization (scopes/approval/rate) |
 | LLM07 System Prompt Leakage    | ✅ extraction pack + canary detector         |
-| LLM08 Vector & Embedding       | ❌ v3.3 retriever middleware                 |
-| LLM09 Misinformation           | ❌ v3.3 grounding checks (partial)           |
+| LLM08 Vector & Embedding       | ✅ tenant isolation + indirect injection + provenance + anomaly |
+| LLM09 Misinformation           | ⚠️ citation + lexical grounding (heuristic)  |
 | LLM10 Unbounded Consumption    | ✅ token+cost budgets, rate limits, repetition |
 
 See [`ROADMAP.md`](ROADMAP.md) for the phased plan.

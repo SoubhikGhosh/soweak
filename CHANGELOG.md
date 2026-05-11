@@ -4,6 +4,42 @@ All notable changes to soweak are documented here. The project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.3.0] — 2026-05-11
+
+Phase 3 of the OWASP roadmap: RAG-layer defenses (LLM08) and grounding /
+citation checks (LLM09).
+
+### Added
+
+- **`soweak.rag`** — retrieval boundary detectors:
+  - `IndirectInjectionDetector` — runs the prompt-injection pack against
+    each retrieved document; flags 2nd-order injection payloads coming
+    from the corpus.
+  - `TenantIsolationDetector(tenant_key="tenant_id")` — flags retrieved
+    documents whose tenant key doesn't match `ctx.tenant_id` (or is
+    missing). Critical-severity on mismatch.
+  - `ProvenanceDetector(required_keys=...)` — flags documents lacking
+    any of source/url/uri/doc_id.
+  - `RetrievalAnomalyDetector(max_deviation=3.0)` — flags score outliers
+    (median-MAD based, robust to skew).
+  - All accept dict, LangChain-style objects, or plain strings.
+- **`soweak.grounding`** — output boundary detectors for LLM09:
+  - `CitationRequiredDetector` — signals when long output contains no
+    citation marker.
+  - `GroundingDetector` — heuristic lexical-overlap check between output
+    sentences and the retrieval context. Reads context from
+    `ctx.metadata["retrieved_text"]` or `["retrieved_documents"]`.
+- 26 new tests covering RAG and grounding paths, including pipeline
+  integration that blocks cross-tenant retrieval.
+
+### Notes
+
+- LLM09 coverage is honestly partial. `GroundingDetector` cannot detect
+  plausible fabrication that shares vocabulary with the source. Treat
+  signals as "worth a human look", not "definitely false."
+
+---
+
 ## [3.2.0] — 2026-05-11
 
 Phase 2 of the OWASP roadmap: agent and runtime controls — LLM06 tool

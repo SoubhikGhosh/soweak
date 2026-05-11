@@ -43,8 +43,8 @@ transform, require-approval, block). All decisions are recorded in an
 | LLM05 Improper Output Handling | Output sanitizer toolkit (HTML/SQL/shell/URL)        | **v3.1**     |
 | LLM06 Excessive Agency         | Tool authorization framework + human-in-the-loop     | **v3.2**     |
 | LLM07 System Prompt Leakage    | Canary tokens + output leak detector                 | **v3.0**     |
-| LLM08 Vector & Embedding       | Retriever middleware + tenant isolation              | v3.3         |
-| LLM09 Misinformation           | Grounding/citation checks (partial — no silver bullet) | v3.3       |
+| LLM08 Vector & Embedding       | Retriever middleware + tenant isolation              | **v3.3**     |
+| LLM09 Misinformation           | Grounding/citation checks (partial — no silver bullet) | **v3.3**   |
 | LLM10 Unbounded Consumption    | Budgets, rate limits, repetition detection           | **v3.2**     |
 
 Bold rows are what v3.0 ships. The rest are phased.
@@ -117,14 +117,33 @@ Deferred to later minor releases:
 - Streaming pipeline integration (back-pressure / circuit-breaker tying
   budgets to in-flight requests).
 
-## Phase 3 — RAG & grounding (v3.3)
+## Phase 3 — RAG & grounding (v3.3) ✅
 
-- **LLM08 retriever middleware**: `on_retrieval` hook enforces tenant
-  isolation, tags documents with provenance, runs indirect-injection scan on
-  retrieved content, detects retrieval anomalies.
-- Vector-store adapters: pgvector, Pinecone, Weaviate, Chroma, Qdrant.
-- **LLM09 grounding checks** (partial): citation requirement, grounding
-  score (output vs. retrieved context), optional LLM-as-judge backend.
+What shipped:
+
+- **`soweak.rag`** — retrieval-boundary detectors:
+  - `IndirectInjectionDetector` — runs the prompt-injection pack
+    against each retrieved document, tags `doc_index` in metadata.
+  - `TenantIsolationDetector` — verifies every retrieved doc carries
+    the request's tenant_id; missing key = HIGH, mismatch = CRITICAL.
+  - `ProvenanceDetector` — flags docs lacking source/url/uri/doc_id.
+  - `RetrievalAnomalyDetector` — median-MAD outlier flagging on
+    retrieval scores.
+- **`soweak.grounding`** — output-boundary detectors:
+  - `CitationRequiredDetector` — long output without `[ref]` / `(1)` /
+    `[doc-id]` markers.
+  - `GroundingDetector` — lexical-overlap heuristic between output
+    sentences and retrieval context (`ctx.metadata["retrieved_text"]`
+    or `["retrieved_documents"]`).
+
+Deferred:
+
+- Concrete vector-store adapters (pgvector, Pinecone, etc.) — the
+  generic detectors above accept dict-shaped and LangChain-style docs,
+  which is enough for almost everyone. Per-store adapters can land as a
+  v3.3.x minor when there's real demand.
+- LLM-as-judge backend for grounding. The lexical-overlap heuristic is
+  what we ship; a `[judge]` extras can plug in a stronger backend.
 
 ## Phase 4 — Build / CI tooling (v3.4)
 

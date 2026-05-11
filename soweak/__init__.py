@@ -85,8 +85,18 @@ from soweak.budget import (
     TokenBudget,
 )
 from soweak.streaming import RepetitionDetector
+from soweak.rag import (
+    IndirectInjectionDetector,
+    ProvenanceDetector,
+    RetrievalAnomalyDetector,
+    TenantIsolationDetector,
+)
+from soweak.grounding import (
+    CitationRequiredDetector,
+    GroundingDetector,
+)
 
-__version__ = "3.2.0"
+__version__ = "3.3.0"
 
 __all__ = [
     # version
@@ -138,4 +148,12 @@ __all__ = [
     "TokenBudget",
     # streaming (LLM10)
     "RepetitionDetector",
+    # RAG (LLM08)
+    "IndirectInjectionDetector",
+    "ProvenanceDetector",
+    "RetrievalAnomalyDetector",
+    "TenantIsolationDetector",
+    # grounding (LLM09)
+    "CitationRequiredDetector",
+    "GroundingDetector",
 ]
