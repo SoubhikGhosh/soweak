@@ -4,6 +4,44 @@ All notable changes to soweak are documented here. The project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.2.0] — 2026-05-11
+
+Phase 2 of the OWASP roadmap: agent and runtime controls — LLM06 tool
+authorization plus LLM10 budgets, rate limits, and streaming repetition
+detection.
+
+### Added
+
+- **`soweak.agent`** — LLM06 tool authorization:
+  - `@guarded_tool(scopes=[...], approval="auto"|"human", rate_limit_per_minute=N,
+    approval_handler=...)` decorator.
+  - `authorize(ctx)` context manager (contextvars-based, async-safe).
+  - `current_context()` accessor.
+  - `ToolCall` / `ToolCallEvent` records.
+  - `ApprovalRequired` exception.
+  - Audit callback via `ctx.metadata["tool_audit_callback"]`.
+  - Granted-scopes via `ctx.metadata["granted_scopes"]`.
+- **`soweak.budget`** — LLM10 budgets and rate limits:
+  - `TokenBudget(limit)` — per-scope integer token tracker.
+  - `CostBudget(limit_usd, pricing=...)` — USD spend tracker with
+    `ModelPricing` table and `DEFAULT_PRICING` for common models.
+  - `BudgetExceededError` raised on charge overrun.
+  - `BudgetEnforcer(budget, scope_attr=...)` — Pipeline enforcer that
+    blocks when a scope's remaining budget is zero.
+  - `RateLimiter` / `RateLimitEnforcer(requests_per_minute=N)` —
+    sliding-window per-scope rate limit.
+- **`soweak.streaming`** — `RepetitionDetector` flags output stuck in a
+  substring loop (LLM10 quality + cost).
+- 36 new tests covering tool auth (scopes, approval, rate limit, audit,
+  async-safety), budgets (token + cost + enforcer behaviour), and
+  repetition detection.
+
+### Changed
+
+- README and ROADMAP coverage tables updated to reflect Phase 2 status.
+
+---
+
 ## [3.1.0] — 2026-05-11
 
 Phase 1 of the OWASP roadmap: bidirectional LLM02 and a real LLM05 toolkit.

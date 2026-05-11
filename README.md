@@ -131,11 +131,11 @@ are *built-in* coverage we ship in those releases.
 | LLM03 Supply Chain             | ❌ build-time only (v3.4 CLI)                |
 | LLM04 Data Poisoning           | ❌ training-time concern (v3.4 canaries)     |
 | LLM05 Output Handling          | ✅ HTML/SQL/shell detectors + HTML sanitizer |
-| LLM06 Excessive Agency         | ❌ v3.2 tool authorization                   |
+| LLM06 Excessive Agency         | ✅ tool authorization (scopes/approval/rate) |
 | LLM07 System Prompt Leakage    | ✅ extraction pack + canary detector         |
 | LLM08 Vector & Embedding       | ❌ v3.3 retriever middleware                 |
 | LLM09 Misinformation           | ❌ v3.3 grounding checks (partial)           |
-| LLM10 Unbounded Consumption    | ❌ v3.2 budgets + limits                     |
+| LLM10 Unbounded Consumption    | ✅ token+cost budgets, rate limits, repetition |
 
 See [`ROADMAP.md`](ROADMAP.md) for the phased plan.
 

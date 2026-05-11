@@ -41,11 +41,11 @@ transform, require-approval, block). All decisions are recorded in an
 | LLM03 Supply Chain             | Build/CI tooling — model hash, SBOM, manifest checks | v3.4 (CLI)   |
 | LLM04 Data & Model Poisoning   | Behavioral canary harness at deploy time             | v3.4 (advisory) |
 | LLM05 Improper Output Handling | Output sanitizer toolkit (HTML/SQL/shell/URL)        | **v3.1**     |
-| LLM06 Excessive Agency         | Tool authorization framework + human-in-the-loop     | v3.2         |
+| LLM06 Excessive Agency         | Tool authorization framework + human-in-the-loop     | **v3.2**     |
 | LLM07 System Prompt Leakage    | Canary tokens + output leak detector                 | **v3.0**     |
 | LLM08 Vector & Embedding       | Retriever middleware + tenant isolation              | v3.3         |
 | LLM09 Misinformation           | Grounding/citation checks (partial — no silver bullet) | v3.3       |
-| LLM10 Unbounded Consumption    | Budgets, rate limits, repetition detection           | v3.2         |
+| LLM10 Unbounded Consumption    | Budgets, rate limits, repetition detection           | **v3.2**     |
 
 Bold rows are what v3.0 ships. The rest are phased.
 
@@ -98,15 +98,24 @@ What deferred to v3.1.x or later:
 - Optional Presidio backend via `extras=["pii"]`.
 - Spotlighting / delimiter encoding helpers for untrusted input spans.
 
-## Phase 2 — Agent & runtime (v3.2)
+## Phase 2 — Agent & runtime (v3.2) ✅
 
-- **LLM06 tool authorization**: `@guarded_tool(scopes=[...], approval="human")`
-  decorator, per-tool / per-user / per-context allow-deny rules, audit trail
-  of every tool invocation.
-- **LLM10 budgets**: per-request / per-session / per-user token + cost caps
-  with provider pricing tables, concurrency limits, streaming repetition
-  detection, circuit-breaker.
-- Human-in-the-loop callback protocol (sync + async).
+What shipped:
+
+- **`soweak.agent`** — `@guarded_tool` decorator with scopes, optional
+  human approval, per-(tool, user) rate limit; `authorize(ctx)`
+  contextvars-based context manager; `ToolCall` / `ToolCallEvent` audit
+  records via `ctx.metadata["tool_audit_callback"]`.
+- **`soweak.budget`** — `TokenBudget`, `CostBudget` (with `ModelPricing`
+  table + `DEFAULT_PRICING` for common models), `BudgetEnforcer`,
+  `RateLimiter`, `RateLimitEnforcer`. All thread-safe.
+- **`soweak.streaming`** — `RepetitionDetector` for output-loop pathology
+  (LLM10 cost + quality).
+
+Deferred to later minor releases:
+
+- Streaming pipeline integration (back-pressure / circuit-breaker tying
+  budgets to in-flight requests).
 
 ## Phase 3 — RAG & grounding (v3.3)
 

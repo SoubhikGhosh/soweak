@@ -67,8 +67,26 @@ from soweak.output import (
     is_safe_sql,
     sanitize_html,
 )
+from soweak.agent import (
+    ApprovalRequired,
+    ToolCall,
+    ToolCallEvent,
+    authorize,
+    current_context,
+    guarded_tool,
+)
+from soweak.budget import (
+    BudgetEnforcer,
+    BudgetExceededError,
+    CostBudget,
+    ModelPricing,
+    RateLimitEnforcer,
+    RateLimiter,
+    TokenBudget,
+)
+from soweak.streaming import RepetitionDetector
 
-__version__ = "3.1.0"
+__version__ = "3.2.0"
 
 __all__ = [
     # version
@@ -103,4 +121,21 @@ __all__ = [
     "html_sanitizer_enforcer",
     "is_safe_sql",
     "sanitize_html",
+    # tool authorization (LLM06)
+    "ApprovalRequired",
+    "ToolCall",
+    "ToolCallEvent",
+    "authorize",
+    "current_context",
+    "guarded_tool",
+    # budgets & rate limits (LLM10)
+    "BudgetEnforcer",
+    "BudgetExceededError",
+    "CostBudget",
+    "ModelPricing",
+    "RateLimitEnforcer",
+    "RateLimiter",
+    "TokenBudget",
+    # streaming (LLM10)
+    "RepetitionDetector",
 ]
