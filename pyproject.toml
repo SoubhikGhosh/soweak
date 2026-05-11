@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "soweak"
-version = "3.5.0"
+version = "3.6.0"
 description = "OWASP LLM Top 10 security middleware framework for Python: input/output/retrieval/tool-call boundary hooks, prompt-injection detection, canary-based system-prompt leakage detection, audit logging, and adapters for LangChain, OpenAI, and Google Gemini."
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -94,6 +94,7 @@ all = [
 ]
 dev = [
     "pytest>=7.0.0",
+    "pytest-asyncio>=0.23.0",
     "pytest-cov>=4.0.0",
     "black>=24.0.0",
     "isort>=5.13.0",
@@ -163,6 +164,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --cov=soweak --cov-report=term-missing"
+asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["soweak"]

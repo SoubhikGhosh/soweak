@@ -53,6 +53,7 @@ from soweak.core import (
     Rule,
     Severity,
     Signal,
+    StreamingPipeline,
 )
 from soweak.enforcers import (
     BlockEnforcer,
@@ -96,7 +97,7 @@ from soweak.grounding import (
     GroundingDetector,
 )
 
-__version__ = "3.5.0"
+__version__ = "3.6.0"
 
 __all__ = [
     # version
@@ -120,6 +121,7 @@ __all__ = [
     "Rule",
     "Severity",
     "Signal",
+    "StreamingPipeline",
     # built-in enforcers
     "BlockEnforcer",
     "LogOnlyEnforcer",

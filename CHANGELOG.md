@@ -4,6 +4,30 @@ All notable changes to soweak are documented here. The project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.6.0] — 2026-05-11
+
+Async surface and streaming-output guard.
+
+### Added
+
+- `Detector.ainspect()` and `Enforcer.adecide()` default async methods on
+  the ABCs. Both delegate to the existing sync methods, so all built-in
+  detectors and enforcers work in async pipelines without changes.
+- `Pipeline.arun()` plus `acheck_input` / `acheck_output` /
+  `acheck_retrieval` / `acheck_tool_call`.
+- `StreamingPipeline(pipeline, scan_every_chars=200, boundary=...)` —
+  guards an async iterator of text chunks (e.g. an LLM streaming
+  response). Re-scans the accumulating buffer every N chars and once
+  more on stream completion. Raises `SecurityError` the moment any
+  STREAM (or OUTPUT, by config) rule blocks.
+- `pytest-asyncio` added to dev extras; `asyncio_mode = "auto"`.
+
+### Changed
+
+- `soweak` re-exports `StreamingPipeline`.
+
+---
+
 ## [3.5.0] — 2026-05-11
 
 Phase 5 of the OWASP roadmap: observability and a red-team CLI. soweak

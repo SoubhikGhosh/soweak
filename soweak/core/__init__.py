@@ -12,7 +12,7 @@ from soweak.core.audit import (
 )
 from soweak.core.detector import Detector, Signal
 from soweak.core.enforcer import Action, Decision, Enforcer
-from soweak.core.pipeline import Pipeline
+from soweak.core.pipeline import Pipeline, StreamingPipeline
 from soweak.core.policy import Policy, PolicyBuilder, Rule
 from soweak.core.types import (
     Boundary,
@@ -41,4 +41,5 @@ __all__ = [
     "Rule",
     "Severity",
     "Signal",
+    "StreamingPipeline",
 ]

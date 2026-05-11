@@ -50,3 +50,13 @@ class Detector(ABC):
     @abstractmethod
     def inspect(self, payload: Payload, ctx: Context) -> Iterable[Signal]:
         """Inspect a payload and yield zero or more signals."""
+
+    async def ainspect(self, payload: Payload, ctx: Context) -> list[Signal]:
+        """Async variant of :meth:`inspect`.
+
+        Default implementation delegates to the sync ``inspect`` so existing
+        detectors work in an async :class:`~soweak.Pipeline` without changes.
+        Override when your detector performs real I/O (calls to a hosted
+        classifier, vector store, external policy engine, etc.).
+        """
+        return list(self.inspect(payload, ctx))

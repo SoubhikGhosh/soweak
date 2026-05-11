@@ -61,3 +61,15 @@ class Enforcer(ABC):
     @abstractmethod
     def decide(self, payload: Payload, signals: list[Signal], ctx: Context) -> Decision:
         ...
+
+    async def adecide(
+        self, payload: Payload, signals: list[Signal], ctx: Context
+    ) -> Decision:
+        """Async variant of :meth:`decide`.
+
+        Default implementation delegates to the sync ``decide`` so existing
+        enforcers work inside ``Pipeline.arun`` without changes. Override when
+        your enforcer awaits external I/O (a human-approval RPC, a remote
+        policy decision point, etc.).
+        """
+        return self.decide(payload, signals, ctx)
