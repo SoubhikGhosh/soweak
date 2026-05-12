@@ -49,12 +49,13 @@ class Pipeline:
         rule that ran.
         """
         ctx = ctx or Context()
-        rules = self.policy.for_boundary(payload.boundary)
+        boundary = payload.boundary  # capture before enforcers mutate payload
+        rules = self.policy.for_boundary(boundary)
         all_signals: list[Signal] = []
 
         if not rules:
             decision = Decision.allow(payload)
-            self._emit(ctx, payload.boundary, all_signals, decision)
+            self._emit(ctx, boundary, all_signals, decision)
             return decision
 
         last_decision: Decision | None = None
@@ -71,7 +72,7 @@ class Pipeline:
 
         assert last_decision is not None
         final = replace(last_decision, signals=list(all_signals))
-        self._emit(ctx, payload.boundary, all_signals, final)
+        self._emit(ctx, boundary, all_signals, final)
         return final
 
     # ----- async surface -----------------------------------------------------
@@ -81,15 +82,17 @@ class Pipeline:
 
         Awaits each detector's ``ainspect`` and each enforcer's ``adecide``;
         both default to the sync impl, so a Pipeline composed entirely of
-        sync detectors works unchanged.
+        sync detectors works unchanged. Audit records are written through
+        :meth:`AuditLog.arecord` so blocking sinks don't stall the event loop.
         """
         ctx = ctx or Context()
-        rules = self.policy.for_boundary(payload.boundary)
+        boundary = payload.boundary  # capture before enforcers mutate payload
+        rules = self.policy.for_boundary(boundary)
         all_signals: list[Signal] = []
 
         if not rules:
             decision = Decision.allow(payload)
-            self._emit(ctx, payload.boundary, all_signals, decision)
+            await self._aemit(ctx, boundary, all_signals, decision)
             return decision
 
         last_decision: Decision | None = None
@@ -106,7 +109,7 @@ class Pipeline:
 
         assert last_decision is not None
         final = replace(last_decision, signals=list(all_signals))
-        self._emit(ctx, payload.boundary, all_signals, final)
+        await self._aemit(ctx, boundary, all_signals, final)
         return final
 
     async def acheck_input(
@@ -208,6 +211,24 @@ class Pipeline:
         if self.audit is None:
             return
         self.audit.record(
+            AuditEvent(
+                request_id=ctx.request_id,
+                boundary=boundary,
+                signals=list(signals),
+                decision=decision,
+            )
+        )
+
+    async def _aemit(
+        self,
+        ctx: Context,
+        boundary: Boundary,
+        signals: list[Signal],
+        decision: Decision,
+    ) -> None:
+        if self.audit is None:
+            return
+        await self.audit.arecord(
             AuditEvent(
                 request_id=ctx.request_id,
                 boundary=boundary,

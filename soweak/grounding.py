@@ -79,8 +79,17 @@ class CitationRequiredDetector(Detector):
         )
 
 
-_TOKEN_RE = re.compile(r"\b[a-z]{4,}\b")
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+# Unicode-aware: match runs of "word" characters (letters in any script,
+# digits, underscores) of length ≥3. The threshold of 3 keeps short noise
+# words ("the", "and") out while not over-filtering non-Latin scripts
+# whose words are often 2–3 codepoints.
+_TOKEN_RE = re.compile(r"\b\w{3,}\b", re.UNICODE)
+# Sentence terminators: ASCII ., !, ? plus common Unicode end punctuation
+# (CJK 。, fullwidth ! ?, Arabic ؟, Urdu ۔). CJK scripts typically don't
+# separate sentences with whitespace, so we match each sentence as a span
+# of non-terminator characters followed by an optional terminator.
+_TERMINATOR_CLASS = r"[.!?。!?؟۔]"
+_SENTENCE_RE = re.compile(rf"[^.!?。!?؟۔]+{_TERMINATOR_CLASS}?", re.UNICODE)
 _STOPWORDS = frozenset(
     {
         "this",
@@ -114,15 +123,36 @@ _STOPWORDS = frozenset(
 )
 
 
-def _tokenize(text: str) -> set[str]:
+def tokenize(text: str) -> set[str]:
+    """Return the set of grounding-relevant tokens in ``text``.
+
+    Unicode-aware: matches words in any script (Latin, CJK, Arabic, etc.)
+    of length ≥3 codepoints, lowercased, with common English stopwords
+    removed. Public so :mod:`soweak.embeddings` and user code can build on
+    the same normalisation soweak uses internally.
+    """
     return {t for t in _TOKEN_RE.findall(text.lower()) if t not in _STOPWORDS}
 
 
-def _split_sentences(text: str) -> list[str]:
-    return [s.strip() for s in _SENTENCE_SPLIT_RE.split(text) if s.strip()]
+def split_sentences(text: str) -> list[str]:
+    """Split ``text`` into sentences on ASCII and Unicode terminators.
+
+    Handles English (whitespace-separated sentences ending in . / ! / ?),
+    CJK (no whitespace, terminators 。 ! ?), Arabic / Urdu (؟ ۔). Empty
+    or whitespace-only fragments are dropped.
+    """
+    return [s.strip() for s in _SENTENCE_RE.findall(text) if s.strip()]
 
 
-def _gather_retrieval(ctx: Context) -> str:
+def gather_retrieval(ctx: Context) -> str:
+    """Pull retrieval context out of ``ctx.metadata``.
+
+    Reads ``retrieved_text`` (a single string) first, then
+    ``retrieved_documents`` (a list of doc-shaped values; supports plain
+    strings, dicts with ``text`` / ``page_content`` / ``content`` /
+    ``body`` keys, and objects exposing ``page_content`` / ``text``
+    attributes — the same conventions used by :mod:`soweak.rag`).
+    """
     direct = ctx.metadata.get(RETRIEVED_TEXT_KEY)
     if isinstance(direct, str) and direct:
         return direct
@@ -144,6 +174,13 @@ def _gather_retrieval(ctx: Context) -> str:
                     parts.append(v)
         return "\n\n".join(parts)
     return ""
+
+
+# Back-compat private aliases — internal callers used these. Will stay
+# pointed at the public functions for the v3.x line.
+_tokenize = tokenize
+_split_sentences = split_sentences
+_gather_retrieval = gather_retrieval
 
 
 class GroundingDetector(Detector):
@@ -233,4 +270,7 @@ __all__ = [
     "GroundingDetector",
     "RETRIEVED_DOCS_KEY",
     "RETRIEVED_TEXT_KEY",
+    "gather_retrieval",
+    "split_sentences",
+    "tokenize",
 ]

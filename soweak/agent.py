@@ -33,14 +33,14 @@ from __future__ import annotations
 
 import contextvars
 import functools
-import threading
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Iterator, Protocol
 
 from soweak.core.types import Context
+from soweak.storage import InMemoryWindowStore, WindowStore
 
 
 # ---------------------------------------------------------------------------
@@ -131,27 +131,39 @@ def current_context() -> Context | None:
 # ---------------------------------------------------------------------------
 
 
-class _RateLimiter:
-    """Sliding-window token bucket over the past 60 seconds."""
+class _ToolRateLimiter:
+    """Per-(tool, user) sliding-window limiter backed by a
+    :class:`~soweak.storage.WindowStore`. Defaults to in-process; pass a
+    persistent / multi-host store for shared limits."""
 
-    def __init__(self, limit_per_minute: int) -> None:
+    def __init__(
+        self,
+        limit_per_minute: int,
+        store: WindowStore | None = None,
+        window_seconds: float = 60.0,
+    ) -> None:
         if limit_per_minute <= 0:
             raise ValueError("rate limit must be positive")
+        if window_seconds <= 0:
+            raise ValueError("window_seconds must be positive")
         self.limit = limit_per_minute
-        self._timestamps: dict[tuple[str, str], list[float]] = {}
-        self._lock = threading.Lock()
+        self._store: WindowStore = store or InMemoryWindowStore()
+        self._window = window_seconds
+
+    @property
+    def store(self) -> WindowStore:
+        return self._store
+
+    def _key(self, tool: str, user: str) -> str:
+        return f"tool:{tool}:user:{user}"
 
     def allow(self, tool: str, user: str) -> bool:
         now = time.time()
-        key = (tool, user)
-        with self._lock:
-            bucket = self._timestamps.setdefault(key, [])
-            cutoff = now - 60.0
-            bucket[:] = [t for t in bucket if t > cutoff]
-            if len(bucket) >= self.limit:
-                return False
-            bucket.append(now)
-            return True
+        key = self._key(tool, user)
+        if self._store.count(key, now, self._window) >= self.limit:
+            return False
+        count = self._store.record(key, now, self._window)
+        return count <= self.limit
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +176,8 @@ def guarded_tool(
     approval: str = "auto",
     rate_limit_per_minute: int | None = None,
     approval_handler: ApprovalHandler | None = None,
+    rate_limit_store: WindowStore | None = None,
+    rate_limit_window_seconds: float = 60.0,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator that wraps a tool function with authorization, rate limiting
     and human-in-the-loop approval.
@@ -175,6 +189,10 @@ def guarded_tool(
         rolling 60 second window.
       approval_handler: callable invoked when ``approval="human"``. Must
         return ``True`` to permit the call. Defaults to a deny-all handler.
+      rate_limit_store: optional :class:`~soweak.storage.WindowStore` backing
+        the rate limiter. Defaults to in-process; supply a SQLite or Redis
+        store to share state across replicas.
+      rate_limit_window_seconds: limiter window length. Default 60 seconds.
 
     Raises:
       PermissionError: when the active context lacks required scopes, is
@@ -185,7 +203,15 @@ def guarded_tool(
     required = frozenset(scopes)
     if approval not in ("auto", "human"):
         raise ValueError("approval must be 'auto' or 'human'")
-    limiter = _RateLimiter(rate_limit_per_minute) if rate_limit_per_minute else None
+    limiter = (
+        _ToolRateLimiter(
+            rate_limit_per_minute,
+            store=rate_limit_store,
+            window_seconds=rate_limit_window_seconds,
+        )
+        if rate_limit_per_minute
+        else None
+    )
     handler: ApprovalHandler = approval_handler or _deny_all
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:

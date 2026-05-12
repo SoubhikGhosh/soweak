@@ -240,8 +240,13 @@ def _build_hf_classifier(
             probs = torch.softmax(outputs.logits, dim=-1)
             return float(probs[0, label_index].item())
 
+    def _warmup(prompt: str = " ") -> float:
+        """Run one forward pass to pay the first-inference cost upfront."""
+        return _classify(prompt)
+
     _classify.model_name = model  # type: ignore[attr-defined]
     _classify.label_index = label_index  # type: ignore[attr-defined]
+    _classify.warmup = _warmup  # type: ignore[attr-defined]
     return _classify
 
 

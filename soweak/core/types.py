@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from enum import Enum
-from functools import total_ordering
+from enum import Enum, IntEnum
 from typing import Any
 
 
@@ -19,20 +18,19 @@ class Boundary(str, Enum):
     STREAM = "stream"
 
 
-@total_ordering
-class Severity(Enum):
-    """Signal severity. Ordered: INFO < LOW < MEDIUM < HIGH < CRITICAL."""
+class Severity(IntEnum):
+    """Signal severity. Ordered: INFO < LOW < MEDIUM < HIGH < CRITICAL.
+
+    Backed by :class:`IntEnum`, so ``sorted(signals, key=lambda s: s.severity)``
+    and direct comparisons (``s.severity >= Severity.HIGH``) work without
+    callers reaching for ``.value``.
+    """
 
     INFO = 0
     LOW = 1
     MEDIUM = 2
     HIGH = 3
     CRITICAL = 4
-
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, Severity):
-            return NotImplemented
-        return self.value < other.value
 
     @property
     def label(self) -> str:

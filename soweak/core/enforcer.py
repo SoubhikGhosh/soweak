@@ -36,9 +36,51 @@ class Decision:
     reason: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    # ----- factories -----
+
     @classmethod
-    def allow(cls, payload: Payload, signals: list[Signal] | None = None) -> Decision:
+    def allow(
+        cls, payload: Payload, signals: list[Signal] | None = None
+    ) -> Decision:
         return cls(Action.ALLOW, payload, list(signals or []))
+
+    @classmethod
+    def warn(
+        cls,
+        payload: Payload,
+        signals: list[Signal] | None = None,
+        reason: str = "",
+    ) -> Decision:
+        return cls(Action.WARN, payload, list(signals or []), reason=reason)
+
+    @classmethod
+    def block(
+        cls,
+        payload: Payload,
+        signals: list[Signal] | None = None,
+        reason: str = "",
+    ) -> Decision:
+        return cls(Action.BLOCK, payload, list(signals or []), reason=reason)
+
+    @classmethod
+    def redact(
+        cls,
+        payload: Payload,
+        signals: list[Signal] | None = None,
+        reason: str = "",
+    ) -> Decision:
+        return cls(Action.REDACT, payload, list(signals or []), reason=reason)
+
+    @classmethod
+    def transform(
+        cls,
+        payload: Payload,
+        signals: list[Signal] | None = None,
+        reason: str = "",
+    ) -> Decision:
+        return cls(Action.TRANSFORM, payload, list(signals or []), reason=reason)
+
+    # ----- predicates -----
 
     @property
     def blocked(self) -> bool:
@@ -46,7 +88,12 @@ class Decision:
 
     @property
     def allowed(self) -> bool:
-        return self.action in (Action.ALLOW, Action.WARN, Action.REDACT, Action.TRANSFORM)
+        return self.action in (
+            Action.ALLOW,
+            Action.WARN,
+            Action.REDACT,
+            Action.TRANSFORM,
+        )
 
 
 class Enforcer(ABC):

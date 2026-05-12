@@ -16,15 +16,23 @@ that turns a batch of strings into vectors. The bundled
 from __future__ import annotations
 
 import math
-from typing import Callable, Iterable, Iterator
+from typing import Any, Callable, Iterable, Iterator
+
+try:  # numpy is optional; we fall back to pure Python.
+    import numpy as _np  # type: ignore[import-not-found]
+
+    _HAS_NUMPY = True
+except ImportError:  # pragma: no cover - exercised only when numpy is absent
+    _np = None  # type: ignore[assignment]
+    _HAS_NUMPY = False
 
 from soweak.core.detector import Detector, Signal
 from soweak.core.types import Boundary, Context, OwaspCategory, Payload, Severity
 from soweak.grounding import (
     RETRIEVED_DOCS_KEY,
     RETRIEVED_TEXT_KEY,
-    _gather_retrieval,
-    _split_sentences,
+    gather_retrieval,
+    split_sentences,
 )
 
 
@@ -48,10 +56,20 @@ Embedder = Callable[[list[str]], list[list[float]]]
 def cosine_similarity(a: list[float], b: list[float]) -> float:
     """Cosine similarity between two equal-length vectors.
 
-    Returns 0.0 if either vector is the zero vector.
+    Uses numpy when available (O(n) C loop); falls back to a pure-Python
+    implementation otherwise. Returns 0.0 if either vector is the zero
+    vector.
     """
     if len(a) != len(b):
         raise ValueError(f"vector length mismatch: {len(a)} vs {len(b)}")
+    if _HAS_NUMPY:
+        va = _np.asarray(a, dtype=_np.float64)
+        vb = _np.asarray(b, dtype=_np.float64)
+        na = float(_np.linalg.norm(va))
+        nb = float(_np.linalg.norm(vb))
+        if na == 0.0 or nb == 0.0:
+            return 0.0
+        return float(_np.dot(va, vb) / (na * nb))
     dot = 0.0
     na = 0.0
     nb = 0.0
@@ -123,10 +141,10 @@ class EmbeddingGroundingDetector(Detector):
         return self._iter(payload, ctx)
 
     def _iter(self, payload: Payload, ctx: Context) -> Iterator[Signal]:
-        retrieval = _gather_retrieval(ctx)
+        retrieval = gather_retrieval(ctx)
         if not retrieval:
             return
-        sentences = [s for s in _split_sentences(payload.text)]
+        sentences = list(split_sentences(payload.text))
         eligible: list[tuple[int, str]] = []
         for i, sentence in enumerate(sentences):
             if len(sentence.split()) < self._min_sentence_tokens:

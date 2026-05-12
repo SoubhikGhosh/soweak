@@ -32,6 +32,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
+from typing import Protocol, runtime_checkable
+
 from soweak.core.detector import Signal
 from soweak.core.enforcer import Action, Decision, Enforcer
 from soweak.core.types import Context, OwaspCategory, Payload, Severity
@@ -41,6 +43,31 @@ from soweak.storage import (
     InMemoryWindowStore,
     WindowStore,
 )
+
+
+# ---------------------------------------------------------------------------
+# Budget protocol — every budget exposes the same minimal surface.
+# ---------------------------------------------------------------------------
+
+
+@runtime_checkable
+class Budget(Protocol):
+    """Protocol shared by :class:`TokenBudget`, :class:`CostBudget`, and any
+    user-defined budget (e.g., request count, byte count).
+
+    Enforcers that want to gate on "is this scope out of budget?" should
+    type their parameter as :class:`Budget` rather than a concrete class so
+    new budget types compose cleanly.
+    """
+
+    @property
+    def name(self) -> str: ...
+
+    def consumed(self, scope: str) -> float: ...
+
+    def remaining(self, scope: str) -> float: ...
+
+    def reset(self, scope: str | None = None) -> None: ...
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +268,7 @@ class BudgetEnforcer(Enforcer):
 
     def __init__(
         self,
-        budget: TokenBudget | CostBudget,
+        budget: Budget,
         scope_attr: str = "user_id",
         name: str | None = None,
     ) -> None:
@@ -357,6 +384,7 @@ class RateLimitEnforcer(Enforcer):
 
 
 __all__ = [
+    "Budget",
     "BudgetEnforcer",
     "BudgetExceededError",
     "CostBudget",

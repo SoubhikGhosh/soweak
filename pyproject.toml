@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "soweak"
-version = "3.10.0"
+version = "3.11.0"
 description = "OWASP LLM Top 10 security middleware framework for Python: input/output/retrieval/tool-call boundary hooks, prompt-injection detection, canary-based system-prompt leakage detection, audit logging, and adapters for LangChain, OpenAI, and Google Gemini."
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -98,12 +98,22 @@ embeddings = [
 yaml = [
     "PyYAML>=6.0",
 ]
+output = [
+    "bleach>=6.0",
+    "sqlparse>=0.4",
+]
+anthropic = [
+    "anthropic>=0.34.0",
+]
 all = [
     "langchain-core>=0.1.0",
     "openai>=1.0.0",
     "google-generativeai>=0.3.0",
+    "anthropic>=0.34.0",
     "opentelemetry-api>=1.20.0",
     "PyYAML>=6.0",
+    "bleach>=6.0",
+    "sqlparse>=0.4",
 ]
 dev = [
     "pytest>=7.0.0",
@@ -167,8 +177,17 @@ strict_optional = true
 [[tool.mypy.overrides]]
 module = [
     "langchain_core.*",
-    "google.generativeai.*",
+    "google",
+    "google.*",
     "openai.*",
+    "anthropic.*",
+    "transformers.*",
+    "torch.*",
+    "sentence_transformers.*",
+    "opentelemetry.*",
+    "bleach.*",
+    "sqlparse.*",
+    "yaml",
 ]
 ignore_missing_imports = true
 

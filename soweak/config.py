@@ -373,7 +373,7 @@ def load_policy(
     text = p.read_text(encoding="utf-8")
     if fmt == "yaml":
         try:
-            import yaml  # type: ignore[import-not-found]
+            import yaml  # type: ignore[import-not-found,import-untyped]
         except ImportError as e:  # pragma: no cover - optional dep
             raise ImportError(
                 "YAML policy support requires `pip install soweak[yaml]`."

@@ -14,8 +14,11 @@ Built-in implementations:
 * :class:`InMemoryCounterStore` / :class:`InMemoryWindowStore` — default
   in-process, thread-safe. State resets on restart.
 * :class:`SqliteCounterStore` / :class:`SqliteWindowStore` — file-backed,
-  survive restarts; safe for a single host. For multi-host deployments
-  swap in a Redis backend (not bundled — see ``CounterStore`` ABC).
+  survive restarts; safe for a single host. Connections are held open for
+  the lifetime of the store, lock-serialised, and explicitly closed via
+  :meth:`close` (or by using the store as a context manager). For
+  multi-host deployments swap in a Redis backend by subclassing either
+  ABC.
 
 Pass a store to :class:`TokenBudget`, :class:`CostBudget`,
 :class:`RateLimiter`, and :class:`RateLimitEnforcer` to share state
@@ -29,6 +32,8 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
+from types import TracebackType
+from typing import Any
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +60,20 @@ class CounterStore(ABC):
     @abstractmethod
     def reset(self, key: str | None = None) -> None:
         """Reset ``key`` to 0, or every key when ``key`` is ``None``."""
+
+    def close(self) -> None:
+        """Release any held resources. Default: no-op."""
+
+    def __enter__(self) -> CounterStore:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.close()
 
 
 class InMemoryCounterStore(CounterStore):
@@ -85,10 +104,11 @@ class InMemoryCounterStore(CounterStore):
 
 
 class SqliteCounterStore(CounterStore):
-    """SQLite-backed counters. Survives process restarts; safe for a single
-    host. Multi-host deployments need a different backend (Redis, etc.).
+    """SQLite-backed counters with a single, lock-serialised connection.
 
-    The store creates a single ``soweak_counters`` table at ``path``.
+    Survives process restarts; safe for a single host. Multi-host deployments
+    need a different backend (Redis, etc.). Always call :meth:`close` (or
+    use as a context manager) to release the file handle cleanly.
     """
 
     _SCHEMA = (
@@ -100,50 +120,75 @@ class SqliteCounterStore(CounterStore):
     def __init__(self, path: str | Path) -> None:
         self.path = str(path)
         self._lock = threading.Lock()
-        with self._connect() as conn:
-            conn.execute(self._SCHEMA)
-            conn.commit()
+        self._closed = False
+        # One persistent connection; concurrent operations serialised via lock.
+        self._conn = sqlite3.connect(
+            self.path,
+            check_same_thread=False,
+            isolation_level=None,  # autocommit; we use explicit BEGIN/COMMIT.
+        )
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA synchronous=NORMAL")
+        self._conn.execute(self._SCHEMA)
 
-    def _connect(self) -> sqlite3.Connection:
-        # check_same_thread=False because we serialise via _lock.
-        conn = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
-        conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+    def _check(self) -> None:
+        if self._closed:
+            raise RuntimeError("SqliteCounterStore is closed")
 
     def add(self, key: str, delta: float, limit: float | None = None) -> float | None:
-        with self._lock, self._connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            cur = conn.execute(
-                "SELECT value FROM soweak_counters WHERE key = ?", (key,)
-            )
-            row = cur.fetchone()
-            current = row[0] if row else 0.0
-            new = current + delta
-            if limit is not None and new > limit:
-                conn.execute("ROLLBACK")
-                return None
-            conn.execute(
-                "INSERT INTO soweak_counters(key, value) VALUES(?, ?) "
-                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                (key, new),
-            )
-            conn.execute("COMMIT")
-            return new
+        with self._lock:
+            self._check()
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._conn.execute(
+                    "SELECT value FROM soweak_counters WHERE key = ?", (key,)
+                ).fetchone()
+                current = float(row[0]) if row else 0.0
+                new = current + delta
+                if limit is not None and new > limit:
+                    self._conn.execute("ROLLBACK")
+                    return None
+                self._conn.execute(
+                    "INSERT INTO soweak_counters(key, value) VALUES(?, ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (key, new),
+                )
+                self._conn.execute("COMMIT")
+                return new
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
 
     def get(self, key: str) -> float:
-        with self._lock, self._connect() as conn:
-            row = conn.execute(
+        with self._lock:
+            self._check()
+            row = self._conn.execute(
                 "SELECT value FROM soweak_counters WHERE key = ?", (key,)
             ).fetchone()
             return float(row[0]) if row else 0.0
 
     def reset(self, key: str | None = None) -> None:
-        with self._lock, self._connect() as conn:
+        with self._lock:
+            self._check()
             if key is None:
-                conn.execute("DELETE FROM soweak_counters")
+                self._conn.execute("DELETE FROM soweak_counters")
             else:
-                conn.execute("DELETE FROM soweak_counters WHERE key = ?", (key,))
-            conn.commit()
+                self._conn.execute(
+                    "DELETE FROM soweak_counters WHERE key = ?", (key,)
+                )
+
+    def close(self) -> None:
+        with self._lock:
+            if not self._closed:
+                self._conn.close()
+                self._closed = True
+
+    def __del__(self) -> None:
+        # Best-effort: don't rely on this; explicit close() is preferred.
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +211,20 @@ class WindowStore(ABC):
 
     @abstractmethod
     def reset(self, key: str | None = None) -> None: ...
+
+    def close(self) -> None:
+        """Release any held resources. Default: no-op."""
+
+    def __enter__(self) -> WindowStore:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.close()
 
 
 class InMemoryWindowStore(WindowStore):
@@ -198,7 +257,8 @@ class InMemoryWindowStore(WindowStore):
 
 
 class SqliteWindowStore(WindowStore):
-    """SQLite-backed sliding-window store."""
+    """SQLite-backed sliding-window store with a single, lock-serialised
+    connection."""
 
     _SCHEMA = (
         "CREATE TABLE IF NOT EXISTS soweak_events ("
@@ -210,48 +270,72 @@ class SqliteWindowStore(WindowStore):
     def __init__(self, path: str | Path) -> None:
         self.path = str(path)
         self._lock = threading.Lock()
-        with self._connect() as conn:
-            conn.executescript(self._SCHEMA)
+        self._closed = False
+        self._conn = sqlite3.connect(
+            self.path,
+            check_same_thread=False,
+            isolation_level=None,
+        )
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA synchronous=NORMAL")
+        self._conn.executescript(self._SCHEMA)
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
-        conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+    def _check(self) -> None:
+        if self._closed:
+            raise RuntimeError("SqliteWindowStore is closed")
 
     def record(self, key: str, timestamp: float, window_seconds: float) -> int:
         cutoff = timestamp - window_seconds
-        with self._lock, self._connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            conn.execute(
-                "DELETE FROM soweak_events WHERE key = ? AND ts <= ?",
-                (key, cutoff),
-            )
-            conn.execute(
-                "INSERT INTO soweak_events(key, ts) VALUES(?, ?)", (key, timestamp)
-            )
-            count = conn.execute(
-                "SELECT COUNT(*) FROM soweak_events WHERE key = ? AND ts > ?",
-                (key, cutoff),
-            ).fetchone()[0]
-            conn.execute("COMMIT")
-            return int(count)
+        with self._lock:
+            self._check()
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                self._conn.execute(
+                    "DELETE FROM soweak_events WHERE key = ? AND ts <= ?",
+                    (key, cutoff),
+                )
+                self._conn.execute(
+                    "INSERT INTO soweak_events(key, ts) VALUES(?, ?)", (key, timestamp)
+                )
+                row = self._conn.execute(
+                    "SELECT COUNT(*) FROM soweak_events WHERE key = ? AND ts > ?",
+                    (key, cutoff),
+                ).fetchone()
+                self._conn.execute("COMMIT")
+                return int(row[0]) if row else 0
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
 
     def count(self, key: str, now: float, window_seconds: float) -> int:
         cutoff = now - window_seconds
-        with self._lock, self._connect() as conn:
-            row = conn.execute(
+        with self._lock:
+            self._check()
+            row = self._conn.execute(
                 "SELECT COUNT(*) FROM soweak_events WHERE key = ? AND ts > ?",
                 (key, cutoff),
             ).fetchone()
             return int(row[0]) if row else 0
 
     def reset(self, key: str | None = None) -> None:
-        with self._lock, self._connect() as conn:
+        with self._lock:
+            self._check()
             if key is None:
-                conn.execute("DELETE FROM soweak_events")
+                self._conn.execute("DELETE FROM soweak_events")
             else:
-                conn.execute("DELETE FROM soweak_events WHERE key = ?", (key,))
-            conn.commit()
+                self._conn.execute("DELETE FROM soweak_events WHERE key = ?", (key,))
+
+    def close(self) -> None:
+        with self._lock:
+            if not self._closed:
+                self._conn.close()
+                self._closed = True
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
 __all__ = [

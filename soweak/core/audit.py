@@ -1,14 +1,26 @@
-"""Audit log: AuditEvent + sinks (in-memory, JSON-lines file)."""
+"""Audit log: AuditEvent + sinks (in-memory, JSON-lines file).
+
+Every :class:`AuditLog` implementation exposes synchronous
+:meth:`AuditLog.record` and async :meth:`AuditLog.arecord`. The async
+default delegates to the sync impl, so existing sync sinks work in async
+pipelines without changes. Override ``arecord`` when you want non-blocking
+I/O (network sinks, async DB clients, etc.).
+
+Sinks that hold OS resources implement context-manager protocol; call
+:meth:`AuditLog.close` (or use ``with`` syntax) to release them.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from types import TracebackType
+from typing import IO, Any
 
 from soweak.core.detector import Signal
 from soweak.core.enforcer import Decision
@@ -54,11 +66,41 @@ def _signal_to_dict(s: Signal) -> dict[str, Any]:
 
 
 class AuditLog(ABC):
-    """Sink that receives every pipeline decision."""
+    """Sink that receives every pipeline decision.
+
+    Synchronous backends implement :meth:`record`. Async-aware backends
+    can override :meth:`arecord` to perform non-blocking writes; the
+    default ``arecord`` runs ``record`` in a worker thread, keeping
+    soweak's :meth:`~soweak.Pipeline.arun` from blocking the event loop on
+    slow sinks.
+    """
 
     @abstractmethod
     def record(self, event: AuditEvent) -> None:
         ...
+
+    async def arecord(self, event: AuditEvent) -> None:
+        """Async variant of :meth:`record`.
+
+        Default implementation runs the sync :meth:`record` in the event
+        loop's default executor, so blocking I/O in ``record`` doesn't
+        stall the loop. Override for native-async sinks.
+        """
+        await asyncio.get_running_loop().run_in_executor(None, self.record, event)
+
+    def close(self) -> None:
+        """Release any held resources. Default: no-op."""
+
+    def __enter__(self) -> AuditLog:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.close()
 
 
 class InMemoryAuditLog(AuditLog):
@@ -87,14 +129,38 @@ class InMemoryAuditLog(AuditLog):
 
 
 class JsonLinesAuditLog(AuditLog):
-    """Appends one JSON object per line to a file. Thread-safe."""
+    """Append one JSON object per line to a file.
+
+    Holds the file handle open for the lifetime of the log (rather than
+    re-opening per record). Thread-safe. Always call :meth:`close` (or use
+    as a context manager) to release the descriptor cleanly.
+    """
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        self._fh: IO[str] | None = self.path.open("a", encoding="utf-8")
 
     def record(self, event: AuditEvent) -> None:
         line = event.to_json()
-        with self._lock, self.path.open("a", encoding="utf-8") as f:
-            f.write(line + "\n")
+        with self._lock:
+            if self._fh is None:
+                raise RuntimeError("JsonLinesAuditLog is closed")
+            self._fh.write(line + "\n")
+            self._fh.flush()
+
+    def close(self) -> None:
+        with self._lock:
+            if self._fh is not None:
+                try:
+                    self._fh.flush()
+                finally:
+                    self._fh.close()
+                    self._fh = None
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass

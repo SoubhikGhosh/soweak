@@ -29,12 +29,44 @@ class Pattern:
 
 @dataclass(frozen=True)
 class PatternPack:
-    """A named bundle of patterns for one OWASP category."""
+    """A named bundle of patterns for one OWASP category.
+
+    ``version`` follows the ``MAJOR.MINOR`` convention. Minor bumps add or
+    refine patterns without removing any; major bumps may remove patterns or
+    change semantics. Callers that pin against a pack version should use
+    :meth:`require_version`.
+    """
 
     name: str
     category: OwaspCategory
     patterns: tuple[Pattern, ...] = field(default_factory=tuple)
     version: str = "1.0"
+
+    def require_version(self, minimum: str) -> None:
+        """Raise :class:`ValueError` if this pack's version is older than
+        ``minimum`` (semver-style ``MAJOR.MINOR`` comparison).
+
+        Example::
+
+            PROMPT_INJECTION_PACK.require_version("1.0")  # ok in v3.x
+        """
+        actual = _parse_pack_version(self.version)
+        wanted = _parse_pack_version(minimum)
+        if actual < wanted:
+            raise ValueError(
+                f"pattern pack {self.name!r} is version {self.version}; "
+                f"caller requires >= {minimum}"
+            )
+
+
+def _parse_pack_version(value: str) -> tuple[int, int]:
+    try:
+        parts = value.split(".")
+        major = int(parts[0])
+        minor = int(parts[1]) if len(parts) > 1 else 0
+        return (major, minor)
+    except (ValueError, IndexError) as e:
+        raise ValueError(f"invalid pack version {value!r}; expected MAJOR.MINOR") from e
 
 
 # ---------------------------------------------------------------------------

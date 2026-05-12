@@ -1,13 +1,22 @@
 """LLM05 output-handling helpers and TransformEnforcer factories.
 
 Detectors flag risky output content; sanitizers fix it. This module ships
-the latter — small, stdlib-only helpers that can be used standalone or
-plugged into a :class:`~soweak.TransformEnforcer` at the output boundary.
+two tiers:
 
-For HTML, the bundled :func:`sanitize_html` is intentionally minimal: it
-removes tags outside an allowlist and strips event-handler attributes and
-dangerous URL schemes. For richer sanitisation (e.g. preserving inline
-styles, CSS sanitisation) use bleach + an external transform.
+* **Stdlib-only baseline** — :func:`sanitize_html`, :class:`URLAllowlist`,
+  :func:`is_safe_sql`. Zero dependencies; works everywhere; intended as
+  defence-in-depth alongside a proper sanitizer / parser at the
+  application's actual rendering / execution boundary.
+* **Stronger optional path** — when ``pip install soweak[output]`` is
+  available, :func:`sanitize_html` delegates to ``bleach`` (which handles
+  charset normalisation, mutation-XSS variants, CSS sanitisation) and
+  :func:`is_safe_sql` delegates to ``sqlparse`` (which understands real
+  SQL grammar, not just regex). Behaviour is transparent: callers don't
+  change anything.
+
+Both tiers honour the same Python signatures. The optional path is opt-in
+and silent — if ``bleach`` / ``sqlparse`` aren't installed, the baseline
+runs.
 """
 
 from __future__ import annotations
@@ -17,8 +26,25 @@ import re
 import urllib.parse
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
+from typing import Any
 
 from soweak.enforcers import TransformEnforcer
+
+try:  # optional, via [output] extras
+    import bleach as _bleach  # type: ignore[import-not-found]
+
+    _HAS_BLEACH = True
+except ImportError:  # pragma: no cover
+    _bleach = None  # type: ignore[assignment]
+    _HAS_BLEACH = False
+
+try:  # optional, via [output] extras
+    import sqlparse as _sqlparse  # type: ignore[import-not-found]
+
+    _HAS_SQLPARSE = True
+except ImportError:  # pragma: no cover
+    _sqlparse = None  # type: ignore[assignment]
+    _HAS_SQLPARSE = False
 
 
 DEFAULT_ALLOWED_TAGS: frozenset[str] = frozenset(
@@ -129,8 +155,26 @@ def sanitize_html(
     All ``on*`` event-handler attributes are removed regardless of tag.
     ``href`` attributes are dropped when they point to ``javascript:``,
     ``data:``, ``vbscript:`` or ``file:`` URIs.
+
+    When ``bleach`` is installed (``pip install soweak[output]``), the
+    sanitization delegates to it for charset-aware, mutation-XSS-resistant
+    handling. Otherwise the bundled stdlib parser runs.
     """
-    parser = _SanitizingParser(allowed_tags, allowed_attrs or DEFAULT_ALLOWED_ATTRS)
+    attrs = allowed_attrs or DEFAULT_ALLOWED_ATTRS
+    if _HAS_BLEACH:
+        # bleach.clean expects attrs as dict[tag -> list[str]].
+        b_attrs: dict[str, list[str]] = {
+            tag: list(attrs_for_tag) for tag, attrs_for_tag in attrs.items()
+        }
+        cleaned: str = _bleach.clean(
+            text,
+            tags=list(allowed_tags),
+            attributes=b_attrs,
+            protocols=["http", "https", "mailto"],
+            strip=True,
+        )
+        return cleaned
+    parser = _SanitizingParser(allowed_tags, attrs)
     parser.feed(text)
     parser.close()
     return parser.result
@@ -177,13 +221,21 @@ _SUSPICIOUS_DML_RE = re.compile(
 )
 
 
+_SAFE_STATEMENT_TYPES: frozenset[str] = frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"})
+
+
 def is_safe_sql(sql: str, allow_ddl: bool = False) -> bool:
     """Heuristic SQL safety check.
 
     Returns ``False`` when ``sql`` contains DDL (unless ``allow_ddl=True``)
     or well-known SQL-injection signatures (``UNION SELECT``, tautologies,
-    ``xp_cmdshell``). Intentionally conservative — use a real parser
-    (``sqlparse`` etc.) for stronger guarantees.
+    ``xp_cmdshell``).
+
+    When ``sqlparse`` is installed (``pip install soweak[output]``), the
+    function additionally parses ``sql`` and rejects any statement whose
+    type is not in ``{SELECT, INSERT, UPDATE, DELETE}`` (plus DDL types
+    when ``allow_ddl=True``). This catches semicolon-stacked injections
+    that the regex pass alone might miss.
     """
     if not sql:
         return True
@@ -191,6 +243,18 @@ def is_safe_sql(sql: str, allow_ddl: bool = False) -> bool:
         return False
     if _SUSPICIOUS_DML_RE.search(sql):
         return False
+    if _HAS_SQLPARSE:
+        statements = _sqlparse.parse(sql)
+        allowed = set(_SAFE_STATEMENT_TYPES)
+        if allow_ddl:
+            allowed |= {"CREATE", "ALTER", "DROP", "TRUNCATE", "GRANT", "REVOKE"}
+        for stmt in statements:
+            stmt_type = (stmt.get_type() or "UNKNOWN").upper()
+            if stmt_type == "UNKNOWN":
+                # sqlparse couldn't classify it — be conservative.
+                continue
+            if stmt_type not in allowed:
+                return False
     return True
 
 

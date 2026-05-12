@@ -101,7 +101,13 @@ def list_python_packages() -> list[InstalledPackage]:
     """Enumerate installed Python distributions in the current interpreter."""
     seen: dict[str, str] = {}
     for dist in md.distributions():
-        name = (dist.metadata.get("Name") or "").strip()
+        # ``PackageMetadata`` exposes ``__getitem__`` (email.message-like).
+        # Use item access for portability across stdlib versions.
+        try:
+            name_raw = dist.metadata["Name"]
+        except KeyError:
+            name_raw = None
+        name = (name_raw or "").strip()
         if not name:
             continue
         version = (dist.version or "").strip()

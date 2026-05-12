@@ -1,5 +1,10 @@
 """soweak — OWASP LLM Top 10 security middleware framework.
 
+A library logger named ``"soweak"`` is created at import time and given a
+:class:`~logging.NullHandler`. Configure it like any other Python logger to
+collect framework-level diagnostics (pattern compilation, store fallbacks,
+adapter import failures); silence with ``logging.getLogger("soweak").setLevel(logging.CRITICAL)``.
+
 See :doc:`ROADMAP <ROADMAP>` for the full architectural model and which
 OWASP categories each release covers.
 
@@ -33,6 +38,12 @@ Quick start::
     if decision.blocked:
         raise SecurityError(decision.reason)
 """
+
+import logging as _logging
+
+# Library logger: callers configure handlers as they see fit. Default
+# is silent (NullHandler) per library best practice.
+_logging.getLogger(__name__).addHandler(_logging.NullHandler())
 
 from soweak.core import (
     Action,
@@ -77,6 +88,7 @@ from soweak.agent import (
     guarded_tool,
 )
 from soweak.budget import (
+    Budget,
     BudgetEnforcer,
     BudgetExceededError,
     CostBudget,
@@ -111,7 +123,7 @@ from soweak.grounding import (
     GroundingDetector,
 )
 
-__version__ = "3.10.0"
+__version__ = "3.11.0"
 
 __all__ = [
     # version
@@ -155,6 +167,7 @@ __all__ = [
     "current_context",
     "guarded_tool",
     # budgets & rate limits (LLM10)
+    "Budget",
     "BudgetEnforcer",
     "BudgetExceededError",
     "CostBudget",
